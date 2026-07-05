@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Columns3, LayoutDashboard, LogOut } from "lucide-react";
+import { CalendarDays, Columns3, LayoutDashboard, LogOut } from "lucide-react";
 
 const ROLE_NAMES = {
   admin: "Администратор",
@@ -23,6 +23,10 @@ export default function Sidebar({ user, onLogout }) {
       <NavLink to="/boards" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
         <LayoutDashboard size={18} />
         Доски
+      </NavLink>
+      <NavLink to="/calendar" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
+        <CalendarDays size={18} />
+        Календарь
       </NavLink>
       <button className="sidebar-logout" onClick={onLogout}>
         <LogOut size={18} />

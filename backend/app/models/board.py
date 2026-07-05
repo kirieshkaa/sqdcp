@@ -1,5 +1,5 @@
 from app import db
-from datetime import datetime
+from datetime import date, datetime
 
 
 class Board(db.Model):
@@ -9,6 +9,7 @@ class Board(db.Model):
     description = db.Column(db.String(500), default="")
     owner_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     department_id = db.Column(db.Integer, db.ForeignKey("departments.id"), nullable=True)
+    board_date = db.Column(db.String(10), default=lambda: date.today().isoformat())
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import BoardDetail from "./pages/BoardDetail";
+import Calendar from "./pages/Calendar";
 
 export const UserContext = createContext(null);
 
@@ -41,6 +42,7 @@ function App() {
             <Route path="/" element={<Navigate to="/boards" />} />
             <Route path="/boards" element={<Dashboard />} />
             <Route path="/boards/:id" element={<BoardDetail />} />
+            <Route path="/calendar" element={<Calendar />} />
             <Route path="*" element={<Navigate to="/boards" />} />
           </Routes>
         </main>

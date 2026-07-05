@@ -49,6 +49,7 @@ export const api = {
   createBoard: (data) => request("/api/boards", { method: "POST", body: JSON.stringify(data) }),
   getBoard: (id) => request(`/api/boards/${id}`),
   updateBoard: (id, data) => request(`/api/boards/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteBoard: (id) => request(`/api/boards/${id}`, { method: "DELETE" }),
 
   // Login.jsx keeps the old registration dropdown hook. The SQDCP flow does not use departments.
   getDepartments: () => Promise.resolve([]),

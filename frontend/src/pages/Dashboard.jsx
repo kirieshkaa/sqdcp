@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { Plus, Columns3 } from "lucide-react";
+import { Plus, Columns3, Trash2 } from "lucide-react";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Dashboard() {
   const [boards, setBoards] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState("");
+  const [boardToDelete, setBoardToDelete] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -34,6 +36,13 @@ export default function Dashboard() {
     navigate(`/boards/${board.id}`);
   };
 
+  const deleteBoard = async () => {
+    if (!boardToDelete) return;
+    await api.deleteBoard(boardToDelete.id);
+    setBoardToDelete(null);
+    load();
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -59,13 +68,24 @@ export default function Dashboard() {
       ) : (
         <div className="boards-grid">
           {boards.map((board) => (
-            <button key={board.id} className="card board-card board-card-button" onClick={() => navigate(`/boards/${board.id}`)}>
-              <div>
+            <div key={board.id} className="card board-card board-card-button" onClick={() => navigate(`/boards/${board.id}`)} role="button" tabIndex={0}>
+              <div className="board-card-title-area">
                 <h3>{board.title}</h3>
-                <p>{board.description || "SQDCP-доска команд проекта"}</p>
               </div>
-              <div className="board-meta">ID: {board.id}</div>
-            </button>
+              <div className="board-card-footer">
+                <button
+                  className="btn btn-ghost btn-sm delete-icon-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBoardToDelete(board);
+                  }}
+                  aria-label={`Удалить доску ${board.title}`}
+                >
+                  <Trash2 size={14} />
+                </button>
+                <div className="board-meta">ID: {board.id}</div>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -91,6 +111,15 @@ export default function Dashboard() {
             </form>
           </div>
         </div>
+      )}
+
+      {boardToDelete && (
+        <ConfirmDeleteModal
+          title="Удалить доску?"
+          message={`Доска "${boardToDelete.title}" будет удалена без возможности восстановления.`}
+          onCancel={() => setBoardToDelete(null)}
+          onConfirm={deleteBoard}
+        />
       )}
     </div>
   );

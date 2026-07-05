@@ -23,6 +23,7 @@ def create_app():
     with app.app_context():
         from app.models import user, department, board, sqdcp_row
         db.create_all()
+        ensure_board_columns()
         ensure_sqdcp_row_columns()
 
     from app.routers.auth import auth_bp
@@ -32,6 +33,17 @@ def create_app():
     app.register_blueprint(boards_bp)
 
     return app
+
+
+def ensure_board_columns():
+    inspector = inspect(db.engine)
+    if "boards" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("boards")}
+    with db.engine.begin() as connection:
+        if "board_date" not in existing_columns:
+            connection.execute(text("ALTER TABLE boards ADD COLUMN board_date TEXT DEFAULT ''"))
 
 
 def ensure_sqdcp_row_columns():

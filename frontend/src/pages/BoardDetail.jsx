@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
   { key: "safety", label: "Safety", description: "безопасность" },
@@ -10,6 +11,10 @@ const DEFAULT_COLUMNS = [
   { key: "cost", label: "Cost", description: "стоимость" },
   { key: "people", label: "People", description: "персонал" },
 ];
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function normalizeRows(rows) {
   return rows.map((row, idx) => ({
@@ -32,6 +37,7 @@ export default function BoardDetail() {
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -95,6 +101,7 @@ export default function BoardDetail() {
     try {
       const data = await api.updateBoard(id, {
         title: board.title,
+        board_date: board.board_date || todayKey(),
         rows: rows.map((row, idx) => ({
           team_name: row.team_name,
           position: idx,
@@ -115,6 +122,12 @@ export default function BoardDetail() {
     }
   };
 
+  const deleteCurrentBoard = async () => {
+    await api.deleteBoard(id);
+    setShowDeleteConfirm(false);
+    navigate("/boards");
+  };
+
   if (loading) return <div className="loading-panel">Загрузка...</div>;
   if (error && !board) return <div className="form-error">{error}</div>;
 
@@ -125,19 +138,38 @@ export default function BoardDetail() {
           <button className="btn btn-ghost btn-sm" onClick={() => navigate("/boards")}>
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <h1>{board.title}</h1>
-            <p className="page-subtitle">Команды проекта и пять фиксированных направлений SQDCP.</p>
+          <div className="board-edit-fields">
+            <label>
+              Название
+              <textarea
+                value={board.title}
+                onChange={(e) => {
+                  resizeTextarea(e.target);
+                  setBoard({ ...board, title: e.target.value });
+                }}
+                ref={(element) => { if (element) resizeTextarea(element); }}
+                aria-label="Название доски"
+                rows={1}
+              />
+            </label>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button className="btn btn-ghost" onClick={addRow}>
-            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Добавить команду
-          </button>
+        <div className="board-actions">
+          <label className="date-picker-control">
+            <CalendarDays size={18} />
+            <input
+              type="date"
+              value={board.board_date || todayKey()}
+              onChange={(e) => setBoard({ ...board, board_date: e.target.value })}
+            />
+          </label>
           <button className="btn btn-primary" onClick={saveBoard} disabled={saving}>
             <Save size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
             {saving ? "Сохранение..." : "Сохранить"}
+          </button>
+          <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+            <Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Удалить доску
           </button>
         </div>
       </div>
@@ -188,6 +220,21 @@ export default function BoardDetail() {
           </tbody>
         </table>
       </div>
+      <div className="board-bottom-actions">
+        <button className="btn btn-ghost" onClick={addRow}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          Добавить команду
+        </button>
+      </div>
+
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          title="Удалить доску?"
+          message={`Доска "${board.title}" будет удалена без возможности восстановления.`}
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={deleteCurrentBoard}
+        />
+      )}
     </div>
   );
 }

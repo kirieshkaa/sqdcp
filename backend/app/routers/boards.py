@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import date, datetime
 from app import db
 from app.models.board import Board
 from app.models.sqdcp_row import SqdcpRow
@@ -46,11 +47,16 @@ def ensure_default_rows(board):
 
 
 def serialize_board(board, include_rows=False):
+    board_date = board.board_date
+    if not board_date and board.created_at:
+        board_date = board.created_at.date().isoformat()
+
     data = {
         "id": board.id,
         "title": board.title,
         "description": board.description,
         "owner_id": board.owner_id,
+        "board_date": board_date,
         "created_at": board.created_at.isoformat() if board.created_at else None,
         "updated_at": board.updated_at.isoformat() if board.updated_at else None,
     }
@@ -73,6 +79,7 @@ def create_board():
     user_id = int(get_jwt_identity())
     data = request.get_json() or {}
     title = (data.get("title") or "Новая SQDCP-доска").strip()
+    board_date = normalize_board_date(data.get("board_date")) or date.today().isoformat()
 
     if not title:
         return jsonify({"error": "Название доски обязательно"}), 400
@@ -82,6 +89,7 @@ def create_board():
         description=data.get("description", ""),
         owner_id=user_id,
         department_id=None,
+        board_date=board_date,
     )
     db.session.add(board)
     db.session.flush()
@@ -108,6 +116,18 @@ def get_board(board_id):
     return jsonify(serialize_board(board, include_rows=True))
 
 
+@boards_bp.route("/<int:board_id>", methods=["DELETE"])
+@jwt_required()
+def delete_board(board_id):
+    board = Board.query.get(board_id)
+    if not board:
+        return jsonify({"ok": True})
+
+    db.session.delete(board)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 @boards_bp.route("/<int:board_id>", methods=["PUT"])
 @jwt_required()
 def update_board(board_id):
@@ -121,6 +141,12 @@ def update_board(board_id):
         if not title:
             return jsonify({"error": "Название доски обязательно"}), 400
         board.title = title
+
+    if "description" in data:
+        board.description = (data.get("description") or "").strip()
+
+    if "board_date" in data:
+        board.board_date = normalize_board_date(data.get("board_date")) or date.today().isoformat()
 
     incoming_rows = data.get("rows")
     if isinstance(incoming_rows, list):
@@ -142,3 +168,12 @@ def update_board(board_id):
 
     db.session.commit()
     return jsonify(serialize_board(board, include_rows=True))
+
+
+def normalize_board_date(value):
+    if not value:
+        return ""
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        return ""
