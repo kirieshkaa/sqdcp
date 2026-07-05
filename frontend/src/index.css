@@ -386,3 +386,193 @@ td { font-size: 0.9rem; }
 
 /* Time on events */
 .calendar-event time { margin-right: 2px; }
+
+/* SQDCP pages */
+.page-header {
+  gap: 1rem;
+}
+
+.page-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-top: 0.35rem;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.board-card-button {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.empty-state,
+.loading-panel {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+}
+
+.sqdcp-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.sqdcp-table {
+  min-width: 1120px;
+  table-layout: fixed;
+}
+
+.sqdcp-table th,
+.sqdcp-table td {
+  border-right: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.sqdcp-table th:last-child,
+.sqdcp-table td:last-child {
+  border-right: none;
+}
+
+.sqdcp-table th {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-transform: none;
+  font-size: 1.1rem;
+  letter-spacing: 0;
+  height: 112px;
+  padding: 1.25rem 0.9rem;
+  text-align: center;
+}
+
+.sqdcp-table th span,
+.sqdcp-table th small {
+  display: block;
+}
+
+.sqdcp-table th small {
+  margin-top: 0.35rem;
+  color: rgba(255,255,255,0.85);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.sqdcp-table th span {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.sqdcp-table .team-column {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.sqdcp-header-safety {
+  background: #b91c1c !important;
+  color: #fff;
+}
+
+.sqdcp-header-quality {
+  background: #15803d !important;
+  color: #fff;
+}
+
+.sqdcp-header-delivery {
+  background: #1d4ed8 !important;
+  color: #fff;
+}
+
+.sqdcp-header-cost {
+  background: #ca8a04 !important;
+  color: #111827;
+}
+
+.sqdcp-header-cost small {
+  color: rgba(17,24,39,0.78) !important;
+}
+
+.sqdcp-header-people {
+  background: #7e22ce !important;
+  color: #fff;
+}
+
+.sqdcp-table tbody tr:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+.sqdcp-table td {
+  min-height: 132px;
+}
+
+.team-column {
+  width: 240px;
+}
+
+.team-cell input {
+  width: 100%;
+  min-height: 58px;
+  padding: 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.team-cell input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sqdcp-edit-cell {
+  padding: 0.65rem;
+}
+
+.sqdcp-edit-cell textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 0.9rem;
+  overflow: hidden;
+  resize: none;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+  text-align: center;
+  align-content: center;
+}
+
+.sqdcp-edit-cell textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.25);
+}
+
+.row-action-column {
+  width: 84px;
+}
+
+.row-action-cell {
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
+}

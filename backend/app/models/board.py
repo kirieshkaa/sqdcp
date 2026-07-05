@@ -12,4 +12,4 @@ class Board(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    charts = db.relationship("Chart", backref="board", lazy="dynamic", cascade="all, delete-orphan")
+    sqdcp_rows = db.relationship("SqdcpRow", backref="board", lazy="dynamic", cascade="all, delete-orphan")

@@ -5,11 +5,6 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import BoardDetail from "./pages/BoardDetail";
-import Calendar from "./pages/Calendar";
-import Departments from "./pages/Departments";
-import DepartmentDetail from "./pages/DepartmentDetail";
-import Reports from "./pages/Reports";
-import Approvals from "./pages/Approvals";
 
 export const UserContext = createContext(null);
 
@@ -43,14 +38,10 @@ function App() {
         <Sidebar user={user} onLogout={() => { localStorage.removeItem("token"); setUser(null); }} />
         <main className="main-content">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Navigate to="/boards" />} />
+            <Route path="/boards" element={<Dashboard />} />
             <Route path="/boards/:id" element={<BoardDetail />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/departments" element={<Departments />} />
-            <Route path="/departments/:id" element={<DepartmentDetail />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/approvals" element={<Approvals />} />
-            <Route path="*" element={<Navigate to="/" />} />
+            <Route path="*" element={<Navigate to="/boards" />} />
           </Routes>
         </main>
       </div>
