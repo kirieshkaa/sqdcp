@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { api } from "../api/client";
 import { ArrowLeft, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
@@ -29,6 +29,34 @@ function normalizeRows(rows) {
   }));
 }
 
+function createBoardSnapshot(board, rows) {
+  return JSON.stringify({
+    title: board?.title || "",
+    board_date: board?.board_date || todayKey(),
+    rows: rows.map((row, idx) => ({
+      team_name: row.team_name || "",
+      position: idx,
+      safety: row.safety || "",
+      quality: row.quality || "",
+      delivery: row.delivery || "",
+      cost: row.cost || "",
+      people: row.people || "",
+    })),
+  });
+}
+
+function createRowsPayload(rows) {
+  return rows.map((row, idx) => ({
+    team_name: row.team_name,
+    position: idx,
+    safety: row.safety,
+    quality: row.quality,
+    delivery: row.delivery,
+    cost: row.cost,
+    people: row.people,
+  }));
+}
+
 export default function BoardDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -38,16 +66,30 @@ export default function BoardDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
   const [error, setError] = useState("");
+  const bypassUnsavedPromptRef = useRef(false);
+
+  const currentSnapshot = useMemo(() => (
+    board ? createBoardSnapshot(board, rows) : ""
+  ), [board, rows]);
+  const hasUnsavedChanges = Boolean(savedSnapshot && currentSnapshot && savedSnapshot !== currentSnapshot);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => (
+    hasUnsavedChanges
+    && !bypassUnsavedPromptRef.current
+    && currentLocation.pathname !== nextLocation.pathname
+  ));
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const data = await api.getBoard(id);
+      const normalizedRows = normalizeRows(data.rows || []);
       setBoard(data);
-      setRows(normalizeRows(data.rows || []));
+      setRows(normalizedRows);
       setColumns(data.columns || DEFAULT_COLUMNS);
+      setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -56,6 +98,24 @@ export default function BoardDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (blocker.state === "blocked" && !hasUnsavedChanges) {
+      blocker.proceed();
+    }
+  }, [blocker, hasUnsavedChanges]);
 
   const updateTeamName = (idx, value) => {
     setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, team_name: value } : row));
@@ -102,30 +162,40 @@ export default function BoardDetail() {
       const data = await api.updateBoard(id, {
         title: board.title,
         board_date: board.board_date || todayKey(),
-        rows: rows.map((row, idx) => ({
-          team_name: row.team_name,
-          position: idx,
-          safety: row.safety,
-          quality: row.quality,
-          delivery: row.delivery,
-          cost: row.cost,
-          people: row.people,
-        })),
+        rows: createRowsPayload(rows),
       });
+      const normalizedRows = normalizeRows(data.rows || []);
       setBoard(data);
-      setRows(normalizeRows(data.rows || []));
+      setRows(normalizedRows);
       setColumns(data.columns || DEFAULT_COLUMNS);
+      setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
   const deleteCurrentBoard = async () => {
+    bypassUnsavedPromptRef.current = true;
     await api.deleteBoard(id);
     setShowDeleteConfirm(false);
     navigate("/boards");
+  };
+
+  const saveAndLeaveBoard = async () => {
+    const saved = await saveBoard();
+    if (saved && blocker.state === "blocked") {
+      blocker.proceed();
+    }
+  };
+
+  const discardAndLeaveBoard = () => {
+    if (blocker.state === "blocked") {
+      blocker.proceed();
+    }
   };
 
   if (loading) return <div className="loading-panel">Загрузка...</div>;
@@ -234,6 +304,25 @@ export default function BoardDetail() {
           onCancel={() => setShowDeleteConfirm(false)}
           onConfirm={deleteCurrentBoard}
         />
+      )}
+
+      {blocker.state === "blocked" && (
+        <div className="modal-overlay">
+          <div className="modal confirm-modal">
+            <h2>Несохранённые изменения</h2>
+            <p className="confirm-modal-copy">
+              На доске есть изменения, которые ещё не сохранены. Что сделать перед выходом?
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={discardAndLeaveBoard} disabled={saving}>
+                Отменить изменения
+              </button>
+              <button type="button" className="btn btn-primary" onClick={saveAndLeaveBoard} disabled={saving}>
+                {saving ? "Сохранение..." : "Сохранить изменения"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

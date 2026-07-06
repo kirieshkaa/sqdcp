@@ -48,7 +48,7 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1>SQDCP-доски</h1>
-          <p className="page-subtitle">Выберите доску или создайте новую таблицу команд.</p>
+          <p className="page-subtitle">Выберите существующую SQDCP доску или создайте новую</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
