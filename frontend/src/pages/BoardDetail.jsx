@@ -80,6 +80,9 @@ export default function BoardDetail() {
   const currentSnapshot = useMemo(() => (
     board ? createBoardSnapshot(board, rows) : ""
   ), [board, rows]);
+  const departmentsById = useMemo(() => (
+    new Map(departments.map((department) => [Number(department.id), department]))
+  ), [departments]);
   const hasUnsavedChanges = Boolean(savedSnapshot && currentSnapshot && savedSnapshot !== currentSnapshot);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => (
     hasUnsavedChanges
@@ -325,8 +328,11 @@ export default function BoardDetail() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx) => (
-              <tr
+            {rows.map((row, idx) => {
+              const linkedDepartment = row.department_id ? departmentsById.get(Number(row.department_id)) : null;
+
+              return (
+                <tr
                 key={row.id}
                 className={[
                   draggedRowIndex === idx ? "row-dragging" : "",
@@ -353,6 +359,9 @@ export default function BoardDetail() {
                     aria-label={`Название команды ${idx + 1}`}
                     rows={1}
                   />
+                  {linkedDepartment?.head && (
+                    <small className="team-cell-head">{linkedDepartment.head}</small>
+                  )}
                 </td>
                 {columns.map((column) => (
                   <td key={column.key} className="sqdcp-edit-cell">
@@ -382,8 +391,9 @@ export default function BoardDetail() {
                     </button>
                   </div>
                 </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -409,7 +419,7 @@ export default function BoardDetail() {
 
       {showDepartmentPicker && (
         <div className="modal-overlay" onClick={() => setShowDepartmentPicker(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+          <div className="modal department-picker-modal" onClick={(event) => event.stopPropagation()}>
             <h2>Добавить существующий отдел</h2>
             {departments.length === 0 ? (
               <p className="confirm-modal-copy">Пока нет созданных отделов.</p>
