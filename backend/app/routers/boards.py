@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import date, datetime
 from app import db
 from app.models.board import Board
+from app.models.department import Department
 from app.models.sqdcp_row import SqdcpRow
 
 boards_bp = Blueprint("boards", __name__, url_prefix="/api/boards")
@@ -19,6 +20,7 @@ SQDCP_COLUMNS = [
 def serialize_row(row):
     return {
         "id": row.id,
+        "department_id": row.department_id,
         "team_name": row.team_name,
         "position": row.position,
         "safety": row.safety or "",
@@ -158,6 +160,7 @@ def update_board(board_id):
             db.session.add(SqdcpRow(
                 board_id=board.id,
                 team_name=team_name,
+                department_id=normalize_department_id(row.get("department_id")),
                 position=idx,
                 safety=row.get("safety") or "",
                 quality=row.get("quality") or "",
@@ -177,3 +180,15 @@ def normalize_board_date(value):
         return datetime.strptime(str(value), "%Y-%m-%d").date().isoformat()
     except ValueError:
         return ""
+
+
+def normalize_department_id(value):
+    if not value:
+        return None
+    try:
+        department_id = int(value)
+    except (TypeError, ValueError):
+        return None
+    if Department.query.get(department_id):
+        return department_id
+    return None

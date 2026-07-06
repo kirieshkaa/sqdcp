@@ -6,6 +6,7 @@ class SqdcpRow(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     board_id = db.Column(db.Integer, db.ForeignKey("boards.id"), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey("departments.id"), nullable=True)
     team_name = db.Column(db.String(200), nullable=False)
     position = db.Column(db.Integer, default=0)
     safety = db.Column(db.Text, default="")

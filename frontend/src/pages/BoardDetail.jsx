@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
@@ -19,6 +19,7 @@ function todayKey() {
 function normalizeRows(rows) {
   return rows.map((row, idx) => ({
     id: row.id || `new-${idx}`,
+    department_id: row.department_id || null,
     team_name: row.team_name || `Команда ${idx + 1}`,
     position: idx,
     safety: row.safety || "",
@@ -35,6 +36,7 @@ function createBoardSnapshot(board, rows) {
     board_date: board?.board_date || todayKey(),
     rows: rows.map((row, idx) => ({
       team_name: row.team_name || "",
+      department_id: row.department_id || null,
       position: idx,
       safety: row.safety || "",
       quality: row.quality || "",
@@ -48,6 +50,7 @@ function createBoardSnapshot(board, rows) {
 function createRowsPayload(rows) {
   return rows.map((row, idx) => ({
     team_name: row.team_name,
+    department_id: row.department_id || null,
     position: idx,
     safety: row.safety,
     quality: row.quality,
@@ -63,11 +66,15 @@ export default function BoardDetail() {
   const [board, setBoard] = useState(null);
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDepartmentPicker, setShowDepartmentPicker] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const [error, setError] = useState("");
+  const [draggedRowIndex, setDraggedRowIndex] = useState(null);
+  const [dragOverRowIndex, setDragOverRowIndex] = useState(null);
   const bypassUnsavedPromptRef = useRef(false);
 
   const currentSnapshot = useMemo(() => (
@@ -84,11 +91,15 @@ export default function BoardDetail() {
     setLoading(true);
     setError("");
     try {
-      const data = await api.getBoard(id);
+      const [data, departmentList] = await Promise.all([
+        api.getBoard(id),
+        api.getDepartments(),
+      ]);
       const normalizedRows = normalizeRows(data.rows || []);
       setBoard(data);
       setRows(normalizedRows);
       setColumns(data.columns || DEFAULT_COLUMNS);
+      setDepartments(departmentList);
       setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
     } catch (err) {
       setError(err.message);
@@ -141,6 +152,7 @@ export default function BoardDetail() {
       {
         id: `new-${Date.now()}`,
         team_name: `Команда ${rows.length + 1}`,
+        department_id: null,
         position: rows.length,
         safety: "",
         quality: "",
@@ -151,8 +163,60 @@ export default function BoardDetail() {
     ]);
   };
 
+  const addDepartmentRow = (department) => {
+    setRows([
+      ...rows,
+      {
+        id: `new-department-${department.id}-${Date.now()}`,
+        department_id: department.id,
+        team_name: department.name,
+        position: rows.length,
+        safety: "",
+        quality: "",
+        delivery: "",
+        cost: "",
+        people: "",
+      },
+    ]);
+    setShowDepartmentPicker(false);
+  };
+
   const deleteRow = (idx) => {
     setRows(rows.filter((_, rowIdx) => rowIdx !== idx).map((row, rowIdx) => ({ ...row, position: rowIdx })));
+  };
+
+  const moveRow = (fromIdx, toIdx) => {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
+
+    setRows((currentRows) => {
+      if (fromIdx >= currentRows.length || toIdx >= currentRows.length) return currentRows;
+
+      const nextRows = [...currentRows];
+      const [movedRow] = nextRows.splice(fromIdx, 1);
+      nextRows.splice(toIdx, 0, movedRow);
+      return nextRows.map((row, rowIdx) => ({ ...row, position: rowIdx }));
+    });
+  };
+
+  const handleRowDragStart = (idx, event) => {
+    setDraggedRowIndex(idx);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(idx));
+  };
+
+  const handleRowDrop = (idx, event) => {
+    event.preventDefault();
+    const sourceIndex = draggedRowIndex ?? Number(event.dataTransfer.getData("text/plain"));
+    if (Number.isInteger(sourceIndex)) {
+      moveRow(sourceIndex, idx);
+    }
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
+  };
+
+  const handleRowDragEnd = () => {
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
   };
 
   const saveBoard = async () => {
@@ -262,7 +326,22 @@ export default function BoardDetail() {
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={row.id}>
+              <tr
+                key={row.id}
+                className={[
+                  draggedRowIndex === idx ? "row-dragging" : "",
+                  dragOverRowIndex === idx && draggedRowIndex !== idx ? "row-drop-target" : "",
+                ].filter(Boolean).join(" ")}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDragOverRowIndex(idx);
+                }}
+                onDragLeave={() => {
+                  if (dragOverRowIndex === idx) setDragOverRowIndex(null);
+                }}
+                onDrop={(event) => handleRowDrop(idx, event)}
+              >
                 <td className="team-cell">
                   <textarea
                     value={row.team_name}
@@ -286,9 +365,22 @@ export default function BoardDetail() {
                   </td>
                 ))}
                 <td className="row-action-cell">
-                  <button className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="row-action-buttons">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm row-drag-handle"
+                      draggable
+                      onDragStart={(event) => handleRowDragStart(idx, event)}
+                      onDragEnd={handleRowDragEnd}
+                      aria-label={`Переместить строку ${idx + 1}`}
+                      title="Переместить строку"
+                    >
+                      <GripVertical size={14} />
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -298,7 +390,11 @@ export default function BoardDetail() {
       <div className="board-bottom-actions">
         <button className="btn btn-ghost" onClick={addRow}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-          Добавить команду
+          Добавить новую команду
+        </button>
+        <button className="btn btn-ghost" onClick={() => setShowDepartmentPicker(true)}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          Добавить существующий отдел
         </button>
       </div>
 
@@ -309,6 +405,36 @@ export default function BoardDetail() {
           onCancel={() => setShowDeleteConfirm(false)}
           onConfirm={deleteCurrentBoard}
         />
+      )}
+
+      {showDepartmentPicker && (
+        <div className="modal-overlay" onClick={() => setShowDepartmentPicker(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Добавить существующий отдел</h2>
+            {departments.length === 0 ? (
+              <p className="confirm-modal-copy">Пока нет созданных отделов.</p>
+            ) : (
+              <div className="department-picker-list">
+                {departments.map((department) => (
+                  <button
+                    key={department.id}
+                    type="button"
+                    className="department-picker-item"
+                    onClick={() => addDepartmentRow(department)}
+                  >
+                    <strong>{department.name}</strong>
+                    <span>{department.head || "Заведующий не указан"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowDepartmentPicker(false)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {blocker.state === "blocked" && (

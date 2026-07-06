@@ -23,7 +23,31 @@ cleanup() {
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1"
+    if [[ "$1" == "node" || "$1" == "npm" ]]; then
+      echo "Install Node.js LTS, then restart the terminal and run this script again."
+      echo "macOS options:"
+      echo "  1. Download the LTS installer from https://nodejs.org/"
+      echo "  2. Or install Homebrew first from https://brew.sh/, then run: brew install node"
+      echo "Then check: node -v && npm -v"
+    fi
     exit 1
+  fi
+}
+
+load_nvm_if_needed() {
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    return
+  fi
+
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "$NVM_DIR/nvm.sh"
+    if ! command -v node >/dev/null 2>&1; then
+      nvm install --lts
+    else
+      nvm use --lts >/dev/null 2>&1 || true
+    fi
   fi
 }
 
@@ -51,6 +75,7 @@ echo "========================================"
 echo
 
 require_command "$PYTHON_BIN"
+load_nvm_if_needed
 require_command node
 require_command npm
 

@@ -23,16 +23,32 @@ def create_app():
     with app.app_context():
         from app.models import user, department, board, sqdcp_row
         db.create_all()
+        ensure_department_columns()
         ensure_board_columns()
         ensure_sqdcp_row_columns()
 
     from app.routers.auth import auth_bp
     from app.routers.boards import boards_bp
+    from app.routers.departments import departments_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(boards_bp)
+    app.register_blueprint(departments_bp)
 
     return app
+
+
+def ensure_department_columns():
+    inspector = inspect(db.engine)
+    if "departments" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("departments")}
+    with db.engine.begin() as connection:
+        if "head" not in existing_columns:
+            connection.execute(text("ALTER TABLE departments ADD COLUMN head VARCHAR(150) DEFAULT ''"))
+        if "workers" not in existing_columns:
+            connection.execute(text("ALTER TABLE departments ADD COLUMN workers TEXT DEFAULT ''"))
 
 
 def ensure_board_columns():
@@ -57,3 +73,5 @@ def ensure_sqdcp_row_columns():
         for column in required_columns:
             if column not in existing_columns:
                 connection.execute(text(f"ALTER TABLE sqdcp_rows ADD COLUMN {column} TEXT DEFAULT ''"))
+        if "department_id" not in existing_columns:
+            connection.execute(text("ALTER TABLE sqdcp_rows ADD COLUMN department_id INTEGER"))
