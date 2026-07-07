@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Building2, CalendarDays, Columns3, LayoutDashboard, LogOut } from "lucide-react";
+import { Building2, CalendarDays, Columns3, LayoutDashboard, LogOut, Moon, Sun } from "lucide-react";
 
 const ROLE_NAMES = {
   admin: "Администратор",
@@ -8,7 +8,9 @@ const ROLE_NAMES = {
   viewer: "Наблюдатель",
 };
 
-export default function Sidebar({ user, onLogout }) {
+export default function Sidebar({ user, theme, onToggleTheme, onLogout }) {
+  const isLightTheme = theme === "light";
+
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
@@ -32,6 +34,12 @@ export default function Sidebar({ user, onLogout }) {
         <Building2 size={18} />
         Отделы
       </NavLink>
+      <div className="sidebar-bottom-actions">
+        <button className="sidebar-theme-toggle" onClick={onToggleTheme}>
+          {isLightTheme ? <Moon size={18} /> : <Sun size={18} />}
+          {isLightTheme ? "Тёмная тема" : "Светлая тема"}
+        </button>
+      </div>
       <button className="sidebar-logout" onClick={onLogout}>
         <LogOut size={18} />
         Выйти

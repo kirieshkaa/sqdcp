@@ -21,11 +21,12 @@ def create_app():
     jwt.init_app(app)
 
     with app.app_context():
-        from app.models import user, department, board, sqdcp_row
+        from app.models import user, department, board, sqdcp_row, task
         db.create_all()
         ensure_department_columns()
         ensure_board_columns()
         ensure_sqdcp_row_columns()
+        ensure_task_columns()
 
     from app.routers.auth import auth_bp
     from app.routers.boards import boards_bp
@@ -75,3 +76,16 @@ def ensure_sqdcp_row_columns():
                 connection.execute(text(f"ALTER TABLE sqdcp_rows ADD COLUMN {column} TEXT DEFAULT ''"))
         if "department_id" not in existing_columns:
             connection.execute(text("ALTER TABLE sqdcp_rows ADD COLUMN department_id INTEGER"))
+
+
+def ensure_task_columns():
+    inspector = inspect(db.engine)
+    if "tasks" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("tasks")}
+    with db.engine.begin() as connection:
+        if "department_id" not in existing_columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN department_id INTEGER"))
+        if "status" not in existing_columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN status VARCHAR(20) DEFAULT 'not_started'"))

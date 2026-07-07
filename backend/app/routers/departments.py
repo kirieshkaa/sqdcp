@@ -4,6 +4,7 @@ from app import db
 from app.models.board import Board
 from app.models.department import Department
 from app.models.sqdcp_row import SqdcpRow
+from app.models.task import Task
 from app.models.user import User
 
 departments_bp = Blueprint("departments", __name__, url_prefix="/api/departments")
@@ -30,6 +31,27 @@ def serialize_department(department, include_participation=False):
             "id": board.id,
             "title": board.title,
         } for board in boards]
+        tasks = (
+            Task.query
+            .join(Board, Task.board_id == Board.id)
+            .filter(Task.department_id == department.id)
+            .order_by(Board.updated_at.desc(), Task.id.desc())
+            .all()
+        )
+        assigned_tasks = []
+        for task in tasks:
+            board = Board.query.get(task.board_id)
+            assigned_tasks.append({
+                "id": task.id,
+                "board_id": task.board_id,
+                "board_title": board.title if board else "Доска удалена",
+                "name": task.name,
+                "description": task.description or "",
+                "assignees": task.assignees or "",
+                "column_key": task.column_key or "",
+                "status": task.status or "not_started",
+            })
+        data["assigned_tasks"] = assigned_tasks
     return data
 
 
@@ -112,6 +134,7 @@ def delete_department(department_id):
     User.query.filter_by(department_id=department.id).update({"department_id": None})
     Board.query.filter_by(department_id=department.id).update({"department_id": None})
     SqdcpRow.query.filter_by(department_id=department.id).update({"department_id": None})
+    Task.query.filter_by(department_id=department.id).update({"department_id": None})
     db.session.delete(department)
     db.session.commit()
     return jsonify({"ok": True})

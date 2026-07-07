@@ -14,6 +14,7 @@ export const UserContext = createContext(null);
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -23,6 +24,15 @@ function App() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => currentTheme === "dark" ? "light" : "dark");
+  };
 
   if (loading) return <div className="loading">Загрузка...</div>;
 
@@ -38,7 +48,12 @@ function App() {
   return (
     <UserContext.Provider value={user}>
       <div className="app-layout">
-        <Sidebar user={user} onLogout={() => { localStorage.removeItem("token"); setUser(null); }} />
+        <Sidebar
+          user={user}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onLogout={() => { localStorage.removeItem("token"); setUser(null); }}
+        />
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Navigate to="/boards" />} />

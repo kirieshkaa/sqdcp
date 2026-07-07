@@ -128,6 +128,23 @@ export default function DepartmentDetail() {
             <div className="department-empty-participation">Отдел пока не добавлен ни в одну доску.</div>
           )}
         </div>
+        <div className="form-group">
+          <label>Назначенные задачи:</label>
+          {department.assigned_tasks?.length > 0 ? (
+            <div className="department-task-list">
+              {department.assigned_tasks.map((task) => (
+                <div key={task.id} className="department-task-item">
+                  <strong>{task.name}</strong>
+                  <span>{task.board_title}</span>
+                  {task.assignees && <small>Ответственные: {task.assignees}</small>}
+                  {task.description && <p>{task.description}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="department-empty-participation">Этому отделу пока не назначены задачи.</div>
+          )}
+        </div>
       </div>
 
       {showDeleteConfirm && (
