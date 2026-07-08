@@ -30,6 +30,10 @@ export default function Sidebar({ user, theme, onToggleTheme, onLogout }) {
         <CalendarDays size={18} />
         Календарь
       </NavLink>
+      <NavLink to="/canban" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
+        <Columns3 size={18} />
+        Канбан
+      </NavLink>
       <NavLink to="/departments" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
         <Building2 size={18} />
         Отделы

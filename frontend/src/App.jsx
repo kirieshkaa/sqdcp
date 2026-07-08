@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import BoardDetail from "./pages/BoardDetail";
 import Calendar from "./pages/Calendar";
+import Canban from "./pages/Canban";
 import Departments from "./pages/Departments";
 import DepartmentDetail from "./pages/DepartmentDetail";
 
@@ -60,6 +61,7 @@ function App() {
             <Route path="/boards" element={<Dashboard />} />
             <Route path="/boards/:id" element={<BoardDetail />} />
             <Route path="/calendar" element={<Calendar />} />
+            <Route path="/canban" element={<Canban />} />
             <Route path="/departments" element={<Departments />} />
             <Route path="/departments/:id" element={<DepartmentDetail />} />
             <Route path="*" element={<Navigate to="/boards" />} />

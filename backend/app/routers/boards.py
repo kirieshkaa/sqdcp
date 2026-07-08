@@ -14,7 +14,6 @@ SQDCP_COLUMNS = [
     {"key": "quality", "label": "Quality", "description": "качество"},
     {"key": "delivery", "label": "Delivery", "description": "сроки"},
     {"key": "cost", "label": "Cost", "description": "стоимость"},
-    {"key": "people", "label": "People", "description": "персонал"},
 ]
 VALID_COLUMN_KEYS = {column["key"] for column in SQDCP_COLUMNS}
 TASK_STATUSES = {"not_started", "in_progress", "done"}

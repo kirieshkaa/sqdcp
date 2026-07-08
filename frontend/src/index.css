@@ -494,10 +494,26 @@ td { font-size: 0.9rem; }
 }
 
 .department-task-item {
+  width: 100%;
   padding: 0.9rem 1rem;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.department-task-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.department-task-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .department-task-item strong,
@@ -667,6 +683,10 @@ td { font-size: 0.9rem; }
   font-weight: 500;
 }
 
+:root[data-theme="light"] .sqdcp-header small {
+  color: rgba(17,24,39,0.86) !important;
+}
+
 .sqdcp-table th span {
   font-size: 1.35rem;
   font-weight: 800;
@@ -698,12 +718,7 @@ td { font-size: 0.9rem; }
 }
 
 .sqdcp-header-cost small {
-  color: rgba(17,24,39,0.78) !important;
-}
-
-.sqdcp-header-people {
-  background: #7e22ce !important;
-  color: #fff;
+  color: rgba(255,255,255,0.85) !important;
 }
 
 .sqdcp-table tbody tr:hover {
@@ -785,8 +800,8 @@ td { font-size: 0.9rem; }
 
 .sqdcp-edit-cell textarea {
   width: 100%;
-  min-height: 132px;
-  padding: 0.8rem;
+  min-height: 42px;
+  padding: 0.55rem 0.65rem;
   overflow: hidden;
   resize: none;
   background: transparent;
@@ -815,12 +830,13 @@ td { font-size: 0.9rem; }
 .cell-task-list {
   display: grid;
   gap: 0.4rem;
-  padding: 0 0.45rem 0.55rem;
+  padding: 0.25rem 0.45rem 0.55rem;
 }
 
 .task-pill {
   width: 100%;
-  padding: 0.45rem 0.55rem;
+  min-height: 68px;
+  padding: 0.65rem 0.7rem;
   background: var(--accent-light);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -830,6 +846,23 @@ td { font-size: 0.9rem; }
   font-size: 0.78rem;
   text-align: left;
   overflow-wrap: anywhere;
+}
+
+.task-pill strong,
+.task-pill span {
+  display: block;
+}
+
+.task-pill strong {
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
+.task-pill span {
+  margin-top: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.3;
 }
 
 .task-pill:hover {
@@ -995,6 +1028,67 @@ td { font-size: 0.9rem; }
 .task-detail p {
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.canban-toolbar {
+  max-width: 520px;
+  margin-bottom: 1rem;
+}
+
+.canban-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.canban-column {
+  min-height: 520px;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.canban-column.task-drop-target {
+  background: rgba(59,130,246,0.12);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.35);
+}
+
+.canban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.canban-column-header h2 {
+  font-size: 1.05rem;
+}
+
+.canban-column-header span {
+  min-width: 2rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.canban-task-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.canban-task {
+  min-height: 78px;
 }
 
 .board-edit-fields {

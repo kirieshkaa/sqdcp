@@ -9,7 +9,6 @@ const DEFAULT_COLUMNS = [
   { key: "quality", label: "Quality", description: "качество" },
   { key: "delivery", label: "Delivery", description: "сроки" },
   { key: "cost", label: "Cost", description: "стоимость" },
-  { key: "people", label: "People", description: "персонал" },
 ];
 const TASK_STATUSES = [
   { value: "not_started", label: "не начата" },
@@ -67,6 +66,10 @@ function createRowsPayload(rows) {
   }));
 }
 
+function normalizeColumns(columns) {
+  return (columns?.length ? columns : DEFAULT_COLUMNS).filter((column) => column.key !== "people");
+}
+
 function normalizeTaskStatus(status) {
   return TASK_STATUS_VALUES.has(status) ? status : "not_started";
 }
@@ -85,6 +88,7 @@ export default function BoardDetail() {
   const [tasks, setTasks] = useState([]);
   const [showTaskCreate, setShowTaskCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedTaskForm, setSelectedTaskForm] = useState({ name: "", description: "", assignees: "" });
   const [taskForm, setTaskForm] = useState({ name: "", description: "", assignees: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -105,18 +109,21 @@ export default function BoardDetail() {
   const departmentsById = useMemo(() => (
     new Map(departments.map((department) => [Number(department.id), department]))
   ), [departments]);
+  const visibleColumnKeys = useMemo(() => (
+    new Set(columns.map((column) => column.key))
+  ), [columns]);
   const unassignedTasks = useMemo(() => (
-    tasks.filter((task) => !task.row_id || !task.column_key)
-  ), [tasks]);
+    tasks.filter((task) => !task.row_id || !task.column_key || !visibleColumnKeys.has(task.column_key))
+  ), [tasks, visibleColumnKeys]);
   const tasksByCell = useMemo(() => {
     const result = new Map();
     tasks.forEach((task) => {
-      if (!task.row_id || !task.column_key) return;
+      if (!task.row_id || !task.column_key || !visibleColumnKeys.has(task.column_key)) return;
       const key = `${task.row_id}:${task.column_key}`;
       result.set(key, [...(result.get(key) || []), task]);
     });
     return result;
-  }, [tasks]);
+  }, [tasks, visibleColumnKeys]);
   const hasUnsavedChanges = Boolean(savedSnapshot && currentSnapshot && savedSnapshot !== currentSnapshot);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => (
     hasUnsavedChanges
@@ -135,7 +142,7 @@ export default function BoardDetail() {
       const normalizedRows = normalizeRows(data.rows || []);
       setBoard(data);
       setRows(normalizedRows);
-      setColumns(data.columns || DEFAULT_COLUMNS);
+      setColumns(normalizeColumns(data.columns));
       setDepartments(departmentList);
       setTasks(data.tasks || []);
       setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
@@ -270,6 +277,15 @@ export default function BoardDetail() {
     }
   };
 
+  const openTaskDetail = (task) => {
+    setSelectedTask(task);
+    setSelectedTaskForm({
+      name: task.name || "",
+      description: task.description || "",
+      assignees: task.assignees || "",
+    });
+  };
+
   const deleteSelectedTask = async () => {
     if (!selectedTask) return;
     await api.deleteBoardTask(id, selectedTask.id);
@@ -284,6 +300,27 @@ export default function BoardDetail() {
       setError("");
       const updatedTask = await api.updateBoardTask(id, selectedTask.id, { status });
       setSelectedTask(updatedTask);
+      setTasks((currentTasks) => currentTasks.map((task) => (
+        task.id === updatedTask.id ? updatedTask : task
+      )));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const updateSelectedTaskDetails = async (event) => {
+    event.preventDefault();
+    if (!selectedTask) return;
+
+    try {
+      setError("");
+      const updatedTask = await api.updateBoardTask(id, selectedTask.id, selectedTaskForm);
+      setSelectedTask(updatedTask);
+      setSelectedTaskForm({
+        name: updatedTask.name || "",
+        description: updatedTask.description || "",
+        assignees: updatedTask.assignees || "",
+      });
       setTasks((currentTasks) => currentTasks.map((task) => (
         task.id === updatedTask.id ? updatedTask : task
       )));
@@ -369,7 +406,7 @@ export default function BoardDetail() {
       const normalizedRows = normalizeRows(data.rows || []);
       setBoard(data);
       setRows(normalizedRows);
-      setColumns(data.columns || DEFAULT_COLUMNS);
+      setColumns(normalizeColumns(data.columns));
       setTasks(data.tasks || tasks);
       setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
       return true;
@@ -521,12 +558,6 @@ export default function BoardDetail() {
                       }}
                       onDrop={(event) => assignTaskToCell(row, column.key, event)}
                     >
-                      <textarea
-                        value={row[column.key] || ""}
-                        onChange={(e) => handleCellChange(idx, column.key, e)}
-                        ref={(element) => { if (element) resizeTextarea(element); }}
-                        aria-label={`${column.label}, ${row.team_name}`}
-                      />
                       {assignedTasks.length > 0 && (
                         <div className="cell-task-list">
                           {assignedTasks.map((task) => (
@@ -537,13 +568,21 @@ export default function BoardDetail() {
                               draggable
                               onDragStart={(event) => handleTaskDragStart(task, event)}
                               onDragEnd={handleTaskDragEnd}
-                              onClick={() => setSelectedTask(task)}
+                              onClick={() => openTaskDetail(task)}
                             >
-                              {task.name}
+                              <strong>{task.name}</strong>
+                              {task.assignees && <span>{task.assignees}</span>}
                             </button>
                           ))}
                         </div>
                       )}
+                      <textarea
+                        value={row[column.key] || ""}
+                        onChange={(e) => handleCellChange(idx, column.key, e)}
+                        ref={(element) => { if (element) resizeTextarea(element); }}
+                        aria-label={`${column.label}, ${row.team_name}`}
+                        rows={1}
+                      />
                     </td>
                   );
                 })}
@@ -619,7 +658,7 @@ export default function BoardDetail() {
                 draggable
                 onDragStart={(event) => handleTaskDragStart(task, event)}
                 onDragEnd={handleTaskDragEnd}
-                onClick={() => setSelectedTask(task)}
+                onClick={() => openTaskDetail(task)}
               >
                 <strong>{task.name}</strong>
                 {task.assignees && <span>{task.assignees}</span>}
@@ -713,7 +752,14 @@ export default function BoardDetail() {
         <div className="modal-overlay" onClick={() => setSelectedTask(null)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
             <h2>{selectedTask.name}</h2>
-            <div className="task-detail">
+            <form className="task-detail" onSubmit={updateSelectedTaskDetails}>
+              <div className="form-group">
+                <label>Имя задачи</label>
+                <input
+                  value={selectedTaskForm.name}
+                  onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, name: event.target.value })}
+                />
+              </div>
               <div className="form-group">
                 <label>Степень выполнения</label>
                 <select
@@ -725,23 +771,33 @@ export default function BoardDetail() {
                   ))}
                 </select>
               </div>
-              <div>
-                <span>Описание задачи</span>
-                <p>{selectedTask.description || "Описание не указано."}</p>
+              <div className="form-group">
+                <label>Описание задачи</label>
+                <textarea
+                  value={selectedTaskForm.description}
+                  onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, description: event.target.value })}
+                  rows={5}
+                />
               </div>
-              <div>
-                <span>Ответственные</span>
-                <p>{selectedTask.assignees || "Ответственные не указаны."}</p>
+              <div className="form-group">
+                <label>Ответственные</label>
+                <input
+                  value={selectedTaskForm.assignees}
+                  onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, assignees: event.target.value })}
+                />
               </div>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)}>
-                Закрыть
-              </button>
-              <button type="button" className="btn btn-danger" onClick={deleteSelectedTask}>
-                Удалить
-              </button>
-            </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)}>
+                  Закрыть
+                </button>
+                <button type="button" className="btn btn-danger" onClick={deleteSelectedTask}>
+                  Удалить
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Сохранить
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
