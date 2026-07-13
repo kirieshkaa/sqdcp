@@ -65,4 +65,5 @@ export const api = {
   getDepartment: (id) => request(`/api/departments/${id}`),
   updateDepartment: (id, data) => request(`/api/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteDepartment: (id) => request(`/api/departments/${id}`, { method: "DELETE" }),
+  createDepartmentTask: (departmentId, data) => request(`/api/departments/${departmentId}/tasks`, { method: "POST", body: JSON.stringify(data) }),
 };

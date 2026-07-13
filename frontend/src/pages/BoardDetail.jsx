@@ -9,6 +9,7 @@ const DEFAULT_COLUMNS = [
   { key: "quality", label: "Quality", description: "качество" },
   { key: "delivery", label: "Delivery", description: "сроки" },
   { key: "cost", label: "Cost", description: "стоимость" },
+  { key: "people", label: "People", description: "персонал" },
 ];
 const TASK_STATUSES = [
   { value: "not_started", label: "не начата" },
@@ -67,7 +68,7 @@ function createRowsPayload(rows) {
 }
 
 function normalizeColumns(columns) {
-  return (columns?.length ? columns : DEFAULT_COLUMNS).filter((column) => column.key !== "people");
+  return columns?.length ? columns : DEFAULT_COLUMNS;
 }
 
 function normalizeTaskStatus(status) {

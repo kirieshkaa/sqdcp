@@ -10,6 +10,20 @@ from app.models.user import User
 departments_bp = Blueprint("departments", __name__, url_prefix="/api/departments")
 
 
+def serialize_assigned_task(task):
+    board = Board.query.get(task.board_id)
+    return {
+        "id": task.id,
+        "board_id": task.board_id,
+        "board_title": board.title if board else "Доска удалена",
+        "name": task.name,
+        "description": task.description or "",
+        "assignees": task.assignees or "",
+        "column_key": task.column_key or "",
+        "status": task.status or "not_started",
+    }
+
+
 def serialize_department(department, include_participation=False):
     data = {
         "id": department.id,
@@ -38,20 +52,7 @@ def serialize_department(department, include_participation=False):
             .order_by(Board.updated_at.desc(), Task.id.desc())
             .all()
         )
-        assigned_tasks = []
-        for task in tasks:
-            board = Board.query.get(task.board_id)
-            assigned_tasks.append({
-                "id": task.id,
-                "board_id": task.board_id,
-                "board_title": board.title if board else "Доска удалена",
-                "name": task.name,
-                "description": task.description or "",
-                "assignees": task.assignees or "",
-                "column_key": task.column_key or "",
-                "status": task.status or "not_started",
-            })
-        data["assigned_tasks"] = assigned_tasks
+        data["assigned_tasks"] = [serialize_assigned_task(task) for task in tasks]
     return data
 
 
@@ -122,6 +123,43 @@ def update_department(department_id):
     department.description = data["description"]
     db.session.commit()
     return jsonify(serialize_department(department, include_participation=True))
+
+
+@departments_bp.route("/<int:department_id>/tasks", methods=["POST"])
+@jwt_required()
+def create_department_task(department_id):
+    department = Department.query.get(department_id)
+    if not department:
+        return jsonify({"error": "Отдел не найден"}), 404
+
+    sqdcp_row = (
+        SqdcpRow.query
+        .join(Board, SqdcpRow.board_id == Board.id)
+        .filter(SqdcpRow.department_id == department.id)
+        .order_by(Board.updated_at.desc(), SqdcpRow.id.asc())
+        .first()
+    )
+    if not sqdcp_row:
+        return jsonify({"error": "Сначала добавьте этот отдел в SQDCP-доску."}), 400
+
+    data = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Имя задачи обязательно"}), 400
+
+    task = Task(
+        board_id=sqdcp_row.board_id,
+        row_id=sqdcp_row.id,
+        department_id=department.id,
+        column_key="",
+        name=name,
+        description=(data.get("description") or "").strip(),
+        assignees=(data.get("assignees") or "").strip(),
+        status="not_started",
+    )
+    db.session.add(task)
+    db.session.commit()
+    return jsonify(serialize_assigned_task(task)), 201
 
 
 @departments_bp.route("/<int:department_id>", methods=["DELETE"])

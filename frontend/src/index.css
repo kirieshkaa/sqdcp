@@ -721,6 +721,11 @@ td { font-size: 0.9rem; }
   color: rgba(255,255,255,0.85) !important;
 }
 
+.sqdcp-header-people {
+  background: #7e22ce !important;
+  color: #fff;
+}
+
 .sqdcp-table tbody tr:hover {
   background: rgba(255,255,255,0.02);
 }
@@ -1031,8 +1036,17 @@ td { font-size: 0.9rem; }
 }
 
 .canban-toolbar {
-  max-width: 520px;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  max-width: 720px;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.canban-toolbar .form-group {
+  flex: 1 1 320px;
+  margin-bottom: 0;
 }
 
 .canban-board {
@@ -1089,6 +1103,30 @@ td { font-size: 0.9rem; }
 
 .canban-task {
   min-height: 78px;
+}
+
+.canban-sqdcp-section {
+  margin-top: 1.5rem;
+}
+
+.canban-sqdcp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.canban-sqdcp-header h2 {
+  font-size: 1.15rem;
+}
+
+.canban-sqdcp-table {
+  min-width: 1280px;
+}
+
+.canban-sqdcp-cell {
+  height: 132px;
 }
 
 .board-edit-fields {
