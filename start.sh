@@ -130,12 +130,12 @@ echo "  OK"
 echo "[4/4] Starting frontend (Vite)..."
 npm run dev &
 FRONTEND_PID=$!
-echo "  OK - http://localhost:5173"
+echo "  OK - http://127.0.0.1:3000"
 
 echo
 echo "========================================"
 echo "  Backend:  http://localhost:8000"
-echo "  Frontend: http://localhost:5173"
+echo "  Frontend: http://127.0.0.1:3000"
 echo
 echo "  Press Ctrl+C to stop both servers."
 echo "========================================"

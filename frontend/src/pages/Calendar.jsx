@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { CalendarDays, Columns3, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import { UserContext } from "../App";
+import { canEditCalendar } from "../permissions";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const MONTHS = [
@@ -34,6 +36,8 @@ function getBoardDate(board) {
 
 export default function Calendar() {
   const navigate = useNavigate();
+  const user = useContext(UserContext);
+  const canEdit = canEditCalendar(user);
   const currentDate = useMemo(() => new Date(), []);
   const [boards, setBoards] = useState([]);
   const [year, setYear] = useState(currentDate.getFullYear());
@@ -96,7 +100,7 @@ export default function Calendar() {
   };
 
   const deleteBoard = async () => {
-    if (!boardToDelete) return;
+    if (!boardToDelete || !canEdit) return;
     await api.deleteBoard(boardToDelete.id);
     setBoards(boards.filter((board) => board.id !== boardToDelete.id));
     setBoardToDelete(null);
@@ -170,13 +174,13 @@ export default function Calendar() {
                     <strong>{board.title}</strong>
                     <span>ID: {board.id}</span>
                   </button>
-                  <button
+                  {canEdit && <button
                     className="btn btn-ghost btn-sm delete-icon-button"
                     onClick={() => setBoardToDelete(board)}
                     aria-label={`Удалить доску ${board.title}`}
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </button>}
                 </div>
               ))}
             </div>

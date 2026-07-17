@@ -29,12 +29,12 @@ echo   OK
 
 echo [4/4] Starting frontend (Vite)...
 start "TBP-Frontend" /d "%FRONTEND%" npm run dev
-echo   OK - http://localhost:5173
+echo   OK - http://127.0.0.1:3000
 
 echo.
 echo ========================================
 echo   Backend:  http://localhost:8000
-echo   Frontend: http://localhost:5173
+echo   Frontend: http://127.0.0.1:3000
 echo.
 echo   Test accounts: admin / manager / user1 / viewer
 echo   Password: test123

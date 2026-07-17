@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
 import { api } from "../api/client";
+import { UserContext } from "../App";
+import { canEditCanban, canUseBoards, isDepartmentHead } from "../permissions";
 
 const TASK_STATUSES = [
   { value: "not_started", label: "не начата", columnLabel: "Не начатые" },
@@ -10,6 +12,11 @@ const TASK_STATUSES = [
 ];
 
 const TASK_STATUS_VALUES = new Set(TASK_STATUSES.map((status) => status.value));
+const PROJECT_STATUS_LABELS = {
+  not_started: "\u043d\u0435 \u043d\u0430\u0447\u0430\u0442",
+  in_progress: "\u0432 \u0440\u0430\u0431\u043e\u0442\u0435",
+  done: "\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d",
+};
 const SQDCP_COLUMNS = [
   { key: "safety", label: "Safety", description: "безопасность" },
   { key: "quality", label: "Quality", description: "качество" },
@@ -26,33 +33,44 @@ function taskStatusClass(task) {
   return `task-status-${normalizeTaskStatus(task.status)}`;
 }
 
-function createEmptySqdcpCells() {
-  return SQDCP_COLUMNS.reduce((cells, column) => ({ ...cells, [column.key]: [] }), {});
+function projectStatusClass(status) {
+  return `project-status-${normalizeTaskStatus(status)}`;
 }
 
-function createSqdcpRow(index = 0) {
-  return {
-    id: `project-${Date.now()}-${index}`,
-    project_name: `Проект ${index + 1}`,
-    cells: createEmptySqdcpCells(),
-  };
+function getProjectStatus(project) {
+  const tasks = project.tasks || [];
+  if (tasks.length === 0) return "not_started";
+
+  const statuses = tasks.map((task) => normalizeTaskStatus(task.status));
+  if (statuses.includes("not_started")) return "not_started";
+  if (statuses.includes("in_progress")) return "in_progress";
+  if (statuses.every((status) => status === "done")) return "done";
+  return normalizeTaskStatus(project.status);
 }
 
-function normalizeSqdcpRows(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return [createSqdcpRow(0)];
+function readLegacySqdcpRows(departmentId) {
+  const savedRows = localStorage.getItem(`canban-sqdcp-${departmentId}`);
+  if (!savedRows) return [];
 
-  return rows.map((row, index) => ({
-    id: row.id || `project-${Date.now()}-${index}`,
-    project_name: row.project_name || `Проект ${index + 1}`,
-    cells: SQDCP_COLUMNS.reduce((cells, column) => ({
-      ...cells,
-      [column.key]: Array.isArray(row.cells?.[column.key]) ? row.cells[column.key] : [],
-    }), {}),
-  }));
+  try {
+    const rows = JSON.parse(savedRows);
+    if (!Array.isArray(rows)) return [];
+
+    return rows.map((row, index) => ({
+      project_name: row.project_name || `Проект ${index + 1}`,
+      cells: SQDCP_COLUMNS.reduce((cells, column) => ({
+        ...cells,
+        [column.key]: Array.isArray(row.cells?.[column.key]) ? row.cells[column.key] : [],
+      }), {}),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export default function Canban() {
   const navigate = useNavigate();
+  const user = useContext(UserContext);
   const [departments, setDepartments] = useState([]);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [department, setDepartment] = useState(null);
@@ -65,8 +83,6 @@ export default function Canban() {
     assignees: "",
     status: "not_started",
   });
-  const [sqdcpRows, setSqdcpRows] = useState(() => [createSqdcpRow(0)]);
-  const [loadedSqdcpDepartmentId, setLoadedSqdcpDepartmentId] = useState("");
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dropTargetStatus, setDropTargetStatus] = useState("");
   const [sqdcpDropTarget, setSqdcpDropTarget] = useState("");
@@ -76,6 +92,14 @@ export default function Canban() {
   const [error, setError] = useState("");
 
   const tasks = useMemo(() => department?.assigned_tasks || [], [department]);
+  const projects = useMemo(() => department?.projects || [], [department]);
+  const isDepartmentHeadUser = isDepartmentHead(user);
+  const ownDepartmentId = user?.department_id ? String(user.department_id) : "";
+  const canEditSelectedDepartment = canEditCanban(user, selectedDepartmentId);
+  const canOpenBoards = canUseBoards(user);
+  const selectedDepartment = useMemo(() => (
+    departments.find((item) => String(item.id) === String(selectedDepartmentId)) || null
+  ), [departments, selectedDepartmentId]);
   const tasksById = useMemo(() => (
     new Map(tasks.map((task) => [task.id, task]))
   ), [tasks]);
@@ -94,7 +118,10 @@ export default function Canban() {
       try {
         const data = await api.getDepartments();
         setDepartments(data);
-        setSelectedDepartmentId((currentId) => currentId || (data[0]?.id ? String(data[0].id) : ""));
+        setSelectedDepartmentId((currentId) => {
+          if (isDepartmentHeadUser) return ownDepartmentId;
+          return currentId || (data[0]?.id ? String(data[0].id) : "");
+        });
       } catch (err) {
         setError(err.message);
       } finally {
@@ -103,7 +130,13 @@ export default function Canban() {
     };
 
     loadDepartments();
-  }, []);
+  }, [isDepartmentHeadUser, ownDepartmentId]);
+
+  useEffect(() => {
+    if (isDepartmentHeadUser && ownDepartmentId && selectedDepartmentId !== ownDepartmentId) {
+      setSelectedDepartmentId(ownDepartmentId);
+    }
+  }, [isDepartmentHeadUser, ownDepartmentId, selectedDepartmentId]);
 
   useEffect(() => {
     if (!selectedDepartmentId) {
@@ -115,7 +148,34 @@ export default function Canban() {
       setLoadingDepartment(true);
       setError("");
       try {
-        setDepartment(await api.getDepartment(selectedDepartmentId));
+        const data = await api.getDepartment(selectedDepartmentId);
+        if (!data.projects?.length && canEditSelectedDepartment) {
+          const legacyRows = readLegacySqdcpRows(selectedDepartmentId);
+          if (legacyRows.length > 0) {
+            const legacyTasksById = new Map((data.assigned_tasks || []).map((task) => [task.id, task]));
+            for (const row of legacyRows) {
+              const project = await api.createDepartmentProject(selectedDepartmentId, { name: row.project_name });
+              for (const column of SQDCP_COLUMNS) {
+                for (const taskId of row.cells[column.key] || []) {
+                  const task = legacyTasksById.get(taskId);
+                  if (task) {
+                    await api.updateBoardTask(task.board_id, task.id, {
+                      project_id: project.id,
+                      column_key: column.key,
+                    });
+                  }
+                }
+              }
+            }
+            localStorage.removeItem(`canban-sqdcp-${selectedDepartmentId}`);
+            setDepartment(await api.getDepartment(selectedDepartmentId));
+            return;
+          }
+
+          const project = await api.createDepartmentProject(selectedDepartmentId, { name: "Проект 1" });
+          data.projects = [project];
+        }
+        setDepartment(data);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -124,35 +184,7 @@ export default function Canban() {
     };
 
     loadDepartment();
-  }, [selectedDepartmentId]);
-
-  useEffect(() => {
-    if (!selectedDepartmentId) {
-      setSqdcpRows([createSqdcpRow(0)]);
-      setLoadedSqdcpDepartmentId("");
-      return;
-    }
-
-    setLoadedSqdcpDepartmentId("");
-    const savedRows = localStorage.getItem(`canban-sqdcp-${selectedDepartmentId}`);
-    if (!savedRows) {
-      setSqdcpRows([createSqdcpRow(0)]);
-      setLoadedSqdcpDepartmentId(selectedDepartmentId);
-      return;
-    }
-
-    try {
-      setSqdcpRows(normalizeSqdcpRows(JSON.parse(savedRows)));
-    } catch {
-      setSqdcpRows([createSqdcpRow(0)]);
-    }
-    setLoadedSqdcpDepartmentId(selectedDepartmentId);
-  }, [selectedDepartmentId]);
-
-  useEffect(() => {
-    if (!selectedDepartmentId || loadedSqdcpDepartmentId !== selectedDepartmentId) return;
-    localStorage.setItem(`canban-sqdcp-${selectedDepartmentId}`, JSON.stringify(sqdcpRows));
-  }, [loadedSqdcpDepartmentId, selectedDepartmentId, sqdcpRows]);
+  }, [canEditSelectedDepartment, selectedDepartmentId]);
 
   const openTaskDetail = (task) => {
     setSelectedTask(task);
@@ -166,7 +198,7 @@ export default function Canban() {
 
   const createTask = async (event) => {
     event.preventDefault();
-    if (!selectedDepartmentId) return;
+    if (!selectedDepartmentId || !canEditSelectedDepartment) return;
 
     setTaskSaving(true);
     setError("");
@@ -194,13 +226,20 @@ export default function Canban() {
         assigned_tasks: (currentDepartment.assigned_tasks || []).map((task) => (
           task.id === updatedTask.id ? { ...task, ...updatedTask } : task
         )),
+        projects: (currentDepartment.projects || []).map((project) => ({
+          ...project,
+          tasks: [
+            ...(project.tasks || []).filter((task) => task.id !== updatedTask.id),
+            ...(updatedTask.project_id === project.id ? [{ ...updatedTask }] : []),
+          ],
+        })),
       };
     });
   };
 
   const updateSelectedTaskDetails = async (event) => {
     event.preventDefault();
-    if (!selectedTask) return;
+    if (!selectedTask || !canEditSelectedDepartment) return;
 
     setTaskSaving(true);
     setError("");
@@ -223,6 +262,7 @@ export default function Canban() {
   };
 
   const handleTaskDragStart = (task, event) => {
+    if (!canEditSelectedDepartment) return;
     setDraggedTaskId(task.id);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", String(task.id));
@@ -236,6 +276,7 @@ export default function Canban() {
 
   const moveTaskToStatus = async (status, event) => {
     event.preventDefault();
+    if (!canEditSelectedDepartment) return;
     const rawTaskId = event.dataTransfer.getData("text/plain");
     const fallbackTaskId = rawTaskId ? Number(rawTaskId) : null;
     const taskId = draggedTaskId ?? (Number.isInteger(fallbackTaskId) ? fallbackTaskId : null);
@@ -260,43 +301,80 @@ export default function Canban() {
     }
   };
 
-  const updateSqdcpProjectName = (rowId, value) => {
-    setSqdcpRows((currentRows) => currentRows.map((row) => (
-      row.id === rowId ? { ...row, project_name: value } : row
-    )));
+  const updateSqdcpProjectName = (projectId, value) => {
+    setDepartment((currentDepartment) => ({
+      ...currentDepartment,
+      projects: (currentDepartment.projects || []).map((project) => (
+        project.id === projectId ? { ...project, name: value } : project
+      )),
+    }));
   };
 
-  const addSqdcpRow = () => {
-    setSqdcpRows((currentRows) => [...currentRows, createSqdcpRow(currentRows.length)]);
+  const saveSqdcpProjectName = async (project) => {
+    const name = project.name.trim();
+    if (!name || !selectedDepartmentId || !canEditSelectedDepartment) return;
+
+    try {
+      await api.updateDepartmentProject(selectedDepartmentId, project.id, { name });
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
-  const deleteSqdcpRow = (rowId) => {
-    setSqdcpRows((currentRows) => (
-      currentRows.length <= 1 ? currentRows : currentRows.filter((row) => row.id !== rowId)
-    ));
+  const addSqdcpRow = async () => {
+    if (!selectedDepartmentId || !canEditSelectedDepartment) return;
+
+    setError("");
+    try {
+      const project = await api.createDepartmentProject(selectedDepartmentId, {});
+      setDepartment((currentDepartment) => ({
+        ...currentDepartment,
+        projects: [...(currentDepartment.projects || []), project],
+      }));
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
-  const moveTaskToSqdcpCell = (rowId, columnKey, event) => {
+  const deleteSqdcpRow = async (projectId) => {
+    if (!selectedDepartmentId || projects.length <= 1 || !canEditSelectedDepartment) return;
+
+    setError("");
+    try {
+      await api.deleteDepartmentProject(selectedDepartmentId, projectId);
+      setDepartment((currentDepartment) => ({
+        ...currentDepartment,
+        projects: (currentDepartment.projects || []).filter((project) => project.id !== projectId),
+        assigned_tasks: (currentDepartment.assigned_tasks || []).map((task) => (
+          task.project_id === projectId ? { ...task, project_id: null, column_key: "" } : task
+        )),
+      }));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const moveTaskToSqdcpCell = async (projectId, columnKey, event) => {
     event.preventDefault();
+    if (!canEditSelectedDepartment) return;
     const rawTaskId = event.dataTransfer.getData("text/plain");
     const fallbackTaskId = rawTaskId ? Number(rawTaskId) : null;
     const taskId = draggedTaskId ?? (Number.isInteger(fallbackTaskId) ? fallbackTaskId : null);
-    if (!tasksById.has(taskId)) return;
+    const task = tasksById.get(taskId);
+    if (!task) return;
 
-    setSqdcpRows((currentRows) => currentRows.map((row) => {
-      const nextCells = SQDCP_COLUMNS.reduce((cells, column) => ({
-        ...cells,
-        [column.key]: (row.cells[column.key] || []).filter((id) => id !== taskId),
-      }), {});
-
-      if (row.id === rowId) {
-        nextCells[columnKey] = [...nextCells[columnKey], taskId];
-      }
-
-      return { ...row, cells: nextCells };
-    }));
     setSqdcpDropTarget("");
     setDraggedTaskId(null);
+    setError("");
+    try {
+      const updatedTask = await api.updateBoardTask(task.board_id, task.id, {
+        project_id: projectId,
+        column_key: columnKey,
+      });
+      updateTaskInDepartment({ ...task, ...updatedTask });
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   if (loadingDepartments) return <div className="loading-panel">Загрузка...</div>;
@@ -315,20 +393,26 @@ export default function Canban() {
       <div className="canban-toolbar">
         <div className="form-group">
           <label>Отдел</label>
-          <select
-            value={selectedDepartmentId}
-            onChange={(event) => setSelectedDepartmentId(event.target.value)}
-          >
-            {departments.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
+          {isDepartmentHeadUser ? (
+            <div className="readonly-field">
+              {selectedDepartment?.name || department?.name || "Отдел не найден"}
+            </div>
+          ) : (
+            <select
+              value={selectedDepartmentId}
+              onChange={(event) => setSelectedDepartmentId(event.target.value)}
+            >
+              {departments.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          )}
         </div>
         <button
           type="button"
           className="btn btn-primary"
           onClick={() => setShowTaskCreate(true)}
-          disabled={!selectedDepartmentId || loadingDepartment}
+          disabled={!selectedDepartmentId || loadingDepartment || !canEditSelectedDepartment}
         >
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
           Добавить задачу
@@ -349,7 +433,7 @@ export default function Canban() {
                 key={status.value}
                 className={`canban-column${dropTargetStatus === status.value ? " task-drop-target" : ""}`}
                 onDragOver={(event) => {
-                  if (draggedTaskId === null) return;
+                  if (!canEditSelectedDepartment || draggedTaskId === null) return;
                   event.preventDefault();
                   event.dataTransfer.dropEffect = "move";
                   setDropTargetStatus(status.value);
@@ -373,7 +457,7 @@ export default function Canban() {
                         key={task.id}
                         type="button"
                         className={`task-pill canban-task ${taskStatusClass(task)}`}
-                        draggable
+                        draggable={canEditSelectedDepartment}
                         onDragStart={(event) => handleTaskDragStart(task, event)}
                         onDragEnd={handleTaskDragEnd}
                         onClick={() => openTaskDetail(task)}
@@ -397,7 +481,7 @@ export default function Canban() {
               <h2>SQDCP-доска</h2>
               <p className="page-subtitle">Проекты выбранного отдела</p>
             </div>
-            <button type="button" className="btn btn-ghost" onClick={addSqdcpRow}>
+            <button type="button" className="btn btn-ghost" onClick={addSqdcpRow} disabled={!canEditSelectedDepartment}>
               <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
               Добавить проект
             </button>
@@ -418,28 +502,34 @@ export default function Canban() {
                 </tr>
               </thead>
               <tbody>
-                {sqdcpRows.map((row, rowIndex) => (
-                  <tr key={row.id}>
+                {projects.map((project, rowIndex) => {
+                  const projectStatus = getProjectStatus(project);
+
+                  return (
+                  <tr key={project.id} className={`canban-project-row ${projectStatusClass(projectStatus)}`}>
                     <td className="team-cell">
                       <textarea
-                        value={row.project_name}
-                        onChange={(event) => updateSqdcpProjectName(row.id, event.target.value)}
+                        value={project.name}
+                        onChange={(event) => updateSqdcpProjectName(project.id, event.target.value)}
+                        onBlur={() => saveSqdcpProjectName(project)}
                         aria-label={`Название проекта ${rowIndex + 1}`}
                         rows={1}
+                        readOnly={!canEditSelectedDepartment}
                       />
+                      <span className={`project-status-badge ${projectStatusClass(projectStatus)}`}>
+                        {PROJECT_STATUS_LABELS[projectStatus] || PROJECT_STATUS_LABELS.not_started}
+                      </span>
                     </td>
                     {SQDCP_COLUMNS.map((column) => {
-                      const cellKey = `${row.id}:${column.key}`;
-                      const cellTasks = (row.cells[column.key] || [])
-                        .map((taskId) => tasksById.get(taskId))
-                        .filter(Boolean);
+                      const cellKey = `${project.id}:${column.key}`;
+                      const cellTasks = (project.tasks || []).filter((task) => task.column_key === column.key);
 
                       return (
                         <td
                           key={column.key}
                           className={`sqdcp-edit-cell canban-sqdcp-cell${sqdcpDropTarget === cellKey ? " task-drop-target" : ""}`}
                           onDragOver={(event) => {
-                            if (draggedTaskId === null) return;
+                            if (!canEditSelectedDepartment || draggedTaskId === null) return;
                             event.preventDefault();
                             event.dataTransfer.dropEffect = "move";
                             setSqdcpDropTarget(cellKey);
@@ -448,7 +538,7 @@ export default function Canban() {
                             if (event.currentTarget.contains(event.relatedTarget)) return;
                             setSqdcpDropTarget("");
                           }}
-                          onDrop={(event) => moveTaskToSqdcpCell(row.id, column.key, event)}
+                          onDrop={(event) => moveTaskToSqdcpCell(project.id, column.key, event)}
                         >
                           {cellTasks.length > 0 && (
                             <div className="cell-task-list">
@@ -457,7 +547,7 @@ export default function Canban() {
                                   key={task.id}
                                   type="button"
                                   className={`task-pill canban-task ${taskStatusClass(task)}`}
-                                  draggable
+                                  draggable={canEditSelectedDepartment}
                                   onDragStart={(event) => handleTaskDragStart(task, event)}
                                   onDragEnd={handleTaskDragEnd}
                                   onClick={() => openTaskDetail(task)}
@@ -475,15 +565,16 @@ export default function Canban() {
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
-                        onClick={() => deleteSqdcpRow(row.id)}
-                        disabled={sqdcpRows.length <= 1}
+                        onClick={() => deleteSqdcpRow(project.id)}
+                        disabled={projects.length <= 1 || !canEditSelectedDepartment}
                         aria-label={`Удалить проект ${rowIndex + 1}`}
                       >
                         <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -500,6 +591,7 @@ export default function Canban() {
                 <input
                   value={selectedTaskForm.name}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, name: event.target.value })}
+                  readOnly={!canEditSelectedDepartment}
                 />
               </div>
               <div className="form-group">
@@ -511,6 +603,7 @@ export default function Canban() {
                 <select
                   value={selectedTaskForm.status}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, status: event.target.value })}
+                  disabled={!canEditSelectedDepartment}
                 >
                   {TASK_STATUSES.map((status) => (
                     <option key={status.value} value={status.value}>{status.label}</option>
@@ -523,6 +616,7 @@ export default function Canban() {
                   value={selectedTaskForm.description}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, description: event.target.value })}
                   rows={5}
+                  readOnly={!canEditSelectedDepartment}
                 />
               </div>
               <div className="form-group">
@@ -530,16 +624,17 @@ export default function Canban() {
                 <input
                   value={selectedTaskForm.assignees}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, assignees: event.target.value })}
+                  readOnly={!canEditSelectedDepartment}
                 />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)} disabled={taskSaving}>
                   Закрыть
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => navigate(`/boards/${selectedTask.board_id}`)} disabled={taskSaving}>
+                <button type="button" className="btn btn-ghost" onClick={() => navigate(`/boards/${selectedTask.board_id}`)} disabled={taskSaving || !canOpenBoards}>
                   Открыть доску
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={taskSaving}>
+                <button type="submit" className="btn btn-primary" disabled={taskSaving || !canEditSelectedDepartment}>
                   {taskSaving ? "Сохранение..." : "Сохранить"}
                 </button>
               </div>

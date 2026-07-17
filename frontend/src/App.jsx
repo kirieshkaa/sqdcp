@@ -9,6 +9,7 @@ import Calendar from "./pages/Calendar";
 import Canban from "./pages/Canban";
 import Departments from "./pages/Departments";
 import DepartmentDetail from "./pages/DepartmentDetail";
+import { canUseBoards, canUseCalendar, canUseCanban, canUseDepartments, defaultPathForUser } from "./permissions";
 
 export const UserContext = createContext(null);
 
@@ -46,6 +47,9 @@ function App() {
     );
   }
 
+  const defaultPath = defaultPathForUser(user);
+  const guard = (canAccess, element) => (canAccess ? element : <Navigate to={defaultPath} />);
+
   return (
     <UserContext.Provider value={user}>
       <div className="app-layout">
@@ -57,14 +61,14 @@ function App() {
         />
         <main className="main-content">
           <Routes>
-            <Route path="/" element={<Navigate to="/boards" />} />
-            <Route path="/boards" element={<Dashboard />} />
-            <Route path="/boards/:id" element={<BoardDetail />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/canban" element={<Canban />} />
-            <Route path="/departments" element={<Departments />} />
-            <Route path="/departments/:id" element={<DepartmentDetail />} />
-            <Route path="*" element={<Navigate to="/boards" />} />
+            <Route path="/" element={<Navigate to={defaultPath} />} />
+            <Route path="/boards" element={guard(canUseBoards(user), <Dashboard />)} />
+            <Route path="/boards/:id" element={guard(canUseBoards(user), <BoardDetail />)} />
+            <Route path="/calendar" element={guard(canUseCalendar(user), <Calendar />)} />
+            <Route path="/canban" element={guard(canUseCanban(user), <Canban />)} />
+            <Route path="/departments" element={guard(canUseDepartments(user), <Departments />)} />
+            <Route path="/departments/:id" element={guard(canUseDepartments(user), <DepartmentDetail />)} />
+            <Route path="*" element={<Navigate to={defaultPath} />} />
           </Routes>
         </main>
       </div>

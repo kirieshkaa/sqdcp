@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Fragment, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, CalendarDays, GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronDown, ChevronRight, GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import { UserContext } from "../App";
+import { canEditBoards } from "../permissions";
 
 const DEFAULT_COLUMNS = [
   { key: "safety", label: "Safety", description: "безопасность" },
@@ -16,6 +18,11 @@ const TASK_STATUSES = [
   { value: "in_progress", label: "в работе" },
   { value: "done", label: "выполнена" },
 ];
+const PROJECT_STATUS_LABELS = {
+  not_started: "\u043d\u0435 \u043d\u0430\u0447\u0430\u0442",
+  in_progress: "\u0432 \u0440\u0430\u0431\u043e\u0442\u0435",
+  done: "\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d",
+};
 const TASK_STATUS_VALUES = new Set(TASK_STATUSES.map((status) => status.value));
 
 function todayKey() {
@@ -33,6 +40,7 @@ function normalizeRows(rows) {
     delivery: row.delivery || "",
     cost: row.cost || "",
     people: row.people || "",
+    projects: row.projects || [],
   }));
 }
 
@@ -79,9 +87,37 @@ function taskStatusClass(task) {
   return `task-status-${normalizeTaskStatus(task.status)}`;
 }
 
+function projectStatusClass(status) {
+  return `project-status-${normalizeTaskStatus(status)}`;
+}
+
+function getProjectStatus(project, projectTasks) {
+  const tasks = projectTasks || project.tasks || [];
+  if (tasks.length === 0) return "not_started";
+
+  const statuses = tasks.map((task) => normalizeTaskStatus(task.status));
+  if (statuses.includes("not_started")) return "not_started";
+  if (statuses.includes("in_progress")) return "in_progress";
+  if (statuses.every((status) => status === "done")) return "done";
+  return normalizeTaskStatus(project.status);
+}
+
+function collectBoardTasks(board) {
+  const result = new Map();
+  (board.tasks || []).forEach((task) => result.set(task.id, task));
+  (board.rows || []).forEach((row) => {
+    (row.projects || []).forEach((project) => {
+      (project.tasks || []).forEach((task) => result.set(task.id, task));
+    });
+  });
+  return Array.from(result.values());
+}
+
 export default function BoardDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const user = useContext(UserContext);
+  const canEdit = canEditBoards(user);
   const [board, setBoard] = useState(null);
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
@@ -102,6 +138,7 @@ export default function BoardDetail() {
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [taskDropTarget, setTaskDropTarget] = useState("");
   const [isUnassignedTaskDropTarget, setIsUnassignedTaskDropTarget] = useState(false);
+  const [expandedDepartmentRows, setExpandedDepartmentRows] = useState([]);
   const bypassUnsavedPromptRef = useRef(false);
 
   const currentSnapshot = useMemo(() => (
@@ -113,18 +150,43 @@ export default function BoardDetail() {
   const visibleColumnKeys = useMemo(() => (
     new Set(columns.map((column) => column.key))
   ), [columns]);
+  const departmentRowIds = useMemo(() => (
+    new Set(rows.filter((row) => row.department_id).map((row) => row.id))
+  ), [rows]);
   const unassignedTasks = useMemo(() => (
-    tasks.filter((task) => !task.row_id || !task.column_key || !visibleColumnKeys.has(task.column_key))
-  ), [tasks, visibleColumnKeys]);
+    tasks.filter((task) => !task.project_id && (
+      departmentRowIds.has(task.row_id)
+      || !task.row_id
+      || !task.column_key
+      || !visibleColumnKeys.has(task.column_key)
+    ))
+  ), [departmentRowIds, tasks, visibleColumnKeys]);
   const tasksByCell = useMemo(() => {
     const result = new Map();
     tasks.forEach((task) => {
-      if (!task.row_id || !task.column_key || !visibleColumnKeys.has(task.column_key)) return;
+      if (task.project_id || departmentRowIds.has(task.row_id) || !task.row_id || !task.column_key || !visibleColumnKeys.has(task.column_key)) return;
       const key = `${task.row_id}:${task.column_key}`;
       result.set(key, [...(result.get(key) || []), task]);
     });
     return result;
+  }, [departmentRowIds, tasks, visibleColumnKeys]);
+  const projectTasksByCell = useMemo(() => {
+    const result = new Map();
+    tasks.forEach((task) => {
+      if (!task.project_id || !task.column_key || !visibleColumnKeys.has(task.column_key)) return;
+      const key = `${task.project_id}:${task.column_key}`;
+      result.set(key, [...(result.get(key) || []), task]);
+    });
+    return result;
   }, [tasks, visibleColumnKeys]);
+  const projectTasksByProject = useMemo(() => {
+    const result = new Map();
+    tasks.forEach((task) => {
+      if (!task.project_id) return;
+      result.set(task.project_id, [...(result.get(task.project_id) || []), task]);
+    });
+    return result;
+  }, [tasks]);
   const hasUnsavedChanges = Boolean(savedSnapshot && currentSnapshot && savedSnapshot !== currentSnapshot);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => (
     hasUnsavedChanges
@@ -145,7 +207,7 @@ export default function BoardDetail() {
       setRows(normalizedRows);
       setColumns(normalizeColumns(data.columns));
       setDepartments(departmentList);
-      setTasks(data.tasks || []);
+      setTasks(collectBoardTasks(data));
       setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
     } catch (err) {
       setError(err.message);
@@ -175,10 +237,12 @@ export default function BoardDetail() {
   }, [blocker, hasUnsavedChanges]);
 
   const updateTeamName = (idx, value) => {
+    if (!canEdit) return;
     setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, team_name: value } : row));
   };
 
   const updateCell = (idx, key, value) => {
+    if (!canEdit) return;
     setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, [key]: value } : row));
   };
 
@@ -193,6 +257,7 @@ export default function BoardDetail() {
   };
 
   const addRow = () => {
+    if (!canEdit) return;
     setRows([
       ...rows,
       {
@@ -210,6 +275,7 @@ export default function BoardDetail() {
   };
 
   const addDepartmentRow = (department) => {
+    if (!canEdit) return;
     setRows([
       ...rows,
       {
@@ -228,10 +294,12 @@ export default function BoardDetail() {
   };
 
   const deleteRow = (idx) => {
+    if (!canEdit) return;
     setRows(rows.filter((_, rowIdx) => rowIdx !== idx).map((row, rowIdx) => ({ ...row, position: rowIdx })));
   };
 
   const moveRow = (fromIdx, toIdx) => {
+    if (!canEdit) return;
     if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
 
     setRows((currentRows) => {
@@ -267,6 +335,7 @@ export default function BoardDetail() {
 
   const createTask = async (event) => {
     event.preventDefault();
+    if (!canEdit) return;
     setError("");
     try {
       const task = await api.createBoardTask(id, taskForm);
@@ -288,14 +357,14 @@ export default function BoardDetail() {
   };
 
   const deleteSelectedTask = async () => {
-    if (!selectedTask) return;
+    if (!selectedTask || !canEdit) return;
     await api.deleteBoardTask(id, selectedTask.id);
     setTasks(tasks.filter((task) => task.id !== selectedTask.id));
     setSelectedTask(null);
   };
 
   const updateSelectedTaskStatus = async (status) => {
-    if (!selectedTask) return;
+    if (!selectedTask || !canEdit) return;
 
     try {
       setError("");
@@ -311,7 +380,7 @@ export default function BoardDetail() {
 
   const updateSelectedTaskDetails = async (event) => {
     event.preventDefault();
-    if (!selectedTask) return;
+    if (!selectedTask || !canEdit) return;
 
     try {
       setError("");
@@ -331,6 +400,7 @@ export default function BoardDetail() {
   };
 
   const handleTaskDragStart = (task, event) => {
+    if (!canEdit) return;
     setDraggedTaskId(task.id);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", String(task.id));
@@ -344,6 +414,7 @@ export default function BoardDetail() {
 
   const assignTaskToCell = async (row, columnKey, event) => {
     event.preventDefault();
+    if (!canEdit) return;
     if (draggedTaskId === null) return;
 
     if (typeof row.id !== "number") {
@@ -370,8 +441,40 @@ export default function BoardDetail() {
     }
   };
 
+  const assignTaskToProjectCell = async (project, columnKey, event) => {
+    event.preventDefault();
+    if (!canEdit) return;
+    if (draggedTaskId === null) return;
+
+    const taskId = draggedTaskId;
+    try {
+      setError("");
+      setTaskDropTarget("");
+      const updatedTask = await api.updateBoardTask(id, taskId, {
+        project_id: project.id,
+        column_key: columnKey,
+      });
+      setTasks((currentTasks) => currentTasks.map((task) => (
+        task.id === updatedTask.id ? updatedTask : task
+      )));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDraggedTaskId(null);
+    }
+  };
+
+  const toggleDepartmentProjects = (rowId) => {
+    setExpandedDepartmentRows((currentRows) => (
+      currentRows.includes(rowId)
+        ? currentRows.filter((id) => id !== rowId)
+        : [...currentRows, rowId]
+    ));
+  };
+
   const unassignTask = async (event) => {
     event.preventDefault();
+    if (!canEdit) return;
     const rawTaskId = event.dataTransfer.getData("text/plain");
     const fallbackTaskId = rawTaskId ? Number(rawTaskId) : null;
     const taskId = draggedTaskId ?? (Number.isInteger(fallbackTaskId) ? fallbackTaskId : null);
@@ -396,6 +499,7 @@ export default function BoardDetail() {
   };
 
   const saveBoard = async () => {
+    if (!canEdit) return false;
     setSaving(true);
     setError("");
     try {
@@ -408,7 +512,7 @@ export default function BoardDetail() {
       setBoard(data);
       setRows(normalizedRows);
       setColumns(normalizeColumns(data.columns));
-      setTasks(data.tasks || tasks);
+      setTasks(collectBoardTasks(data));
       setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
       return true;
     } catch (err) {
@@ -420,6 +524,7 @@ export default function BoardDetail() {
   };
 
   const deleteCurrentBoard = async () => {
+    if (!canEdit) return;
     bypassUnsavedPromptRef.current = true;
     await api.deleteBoard(id);
     setShowDeleteConfirm(false);
@@ -461,6 +566,7 @@ export default function BoardDetail() {
                 ref={(element) => { if (element) resizeTextarea(element); }}
                 aria-label="Название доски"
                 rows={1}
+                readOnly={!canEdit}
               />
             </label>
           </div>
@@ -472,16 +578,17 @@ export default function BoardDetail() {
               type="date"
               value={board.board_date || todayKey()}
               onChange={(e) => setBoard({ ...board, board_date: e.target.value })}
+              readOnly={!canEdit}
             />
           </label>
-          <button className="btn btn-primary" onClick={saveBoard} disabled={saving}>
+          {canEdit && <button className="btn btn-primary" onClick={saveBoard} disabled={saving}>
             <Save size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
             {saving ? "Сохранение..." : "Сохранить"}
-          </button>
-          <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+          </button>}
+          {canEdit && <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
             <Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
             Удалить доску
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -504,16 +611,18 @@ export default function BoardDetail() {
           <tbody>
             {rows.map((row, idx) => {
               const linkedDepartment = row.department_id ? departmentsById.get(Number(row.department_id)) : null;
+              const rowProjects = row.projects || [];
+              const isExpanded = expandedDepartmentRows.includes(row.id);
 
               return (
+                <Fragment key={row.id}>
                 <tr
-                key={row.id}
                 className={[
                   draggedRowIndex === idx ? "row-dragging" : "",
                   draggedRowIndex !== null && dragOverRowIndex === idx && draggedRowIndex !== idx ? "row-drop-target" : "",
                 ].filter(Boolean).join(" ")}
                 onDragOver={(event) => {
-                  if (draggedRowIndex === null) return;
+                  if (!canEdit || draggedRowIndex === null) return;
                   event.preventDefault();
                   event.dataTransfer.dropEffect = "move";
                   setDragOverRowIndex(idx);
@@ -522,7 +631,7 @@ export default function BoardDetail() {
                   if (dragOverRowIndex === idx) setDragOverRowIndex(null);
                 }}
                 onDrop={(event) => {
-                  if (draggedRowIndex !== null) handleRowDrop(idx, event);
+                  if (canEdit && draggedRowIndex !== null) handleRowDrop(idx, event);
                 }}
               >
                 <td className="team-cell">
@@ -535,21 +644,37 @@ export default function BoardDetail() {
                     ref={(element) => { if (element) resizeTextarea(element); }}
                     aria-label={`Название команды ${idx + 1}`}
                     rows={1}
+                    readOnly={!canEdit}
                   />
                   {linkedDepartment?.head && (
                     <small className="team-cell-head">{linkedDepartment.head}</small>
+                  )}
+                  {linkedDepartment && (
+                    <button
+                      type="button"
+                      className="department-project-toggle"
+                      onClick={() => toggleDepartmentProjects(row.id)}
+                    >
+                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      Проекты отдела
+                      <span>{rowProjects.length}</span>
+                    </button>
                   )}
                 </td>
                 {columns.map((column) => {
                   const cellKey = `${row.id}:${column.key}`;
                   const assignedTasks = tasksByCell.get(cellKey) || [];
+                  const canDropToTeamCell = !row.department_id;
+                  const departmentTaskCount = rowProjects.reduce((count, project) => (
+                    count + (projectTasksByCell.get(`${project.id}:${column.key}`) || []).length
+                  ), 0);
 
                   return (
                     <td
                       key={column.key}
-                      className={`sqdcp-edit-cell${taskDropTarget === cellKey ? " task-drop-target" : ""}`}
+                      className={`sqdcp-edit-cell${canDropToTeamCell && taskDropTarget === cellKey ? " task-drop-target" : ""}`}
                       onDragOver={(event) => {
-                        if (!draggedTaskId) return;
+                        if (!canEdit || !canDropToTeamCell || !draggedTaskId) return;
                         event.preventDefault();
                         event.dataTransfer.dropEffect = "move";
                         setTaskDropTarget(cellKey);
@@ -557,16 +682,18 @@ export default function BoardDetail() {
                       onDragLeave={() => {
                         if (taskDropTarget === cellKey) setTaskDropTarget("");
                       }}
-                      onDrop={(event) => assignTaskToCell(row, column.key, event)}
+                      onDrop={(event) => {
+                        if (canEdit && canDropToTeamCell) assignTaskToCell(row, column.key, event);
+                      }}
                     >
-                      {assignedTasks.length > 0 && (
+                      {canDropToTeamCell && assignedTasks.length > 0 && (
                         <div className="cell-task-list">
                           {assignedTasks.map((task) => (
                             <button
                               key={task.id}
                               type="button"
                               className={`task-pill ${taskStatusClass(task)}`}
-                              draggable
+                              draggable={canEdit}
                               onDragStart={(event) => handleTaskDragStart(task, event)}
                               onDragEnd={handleTaskDragEnd}
                               onClick={() => openTaskDetail(task)}
@@ -577,12 +704,19 @@ export default function BoardDetail() {
                           ))}
                         </div>
                       )}
+                      {linkedDepartment && (
+                        <div className="department-task-count">
+                          <strong>{departmentTaskCount}</strong>
+                          <span>{departmentTaskCount === 1 ? "задача" : "задач"}</span>
+                        </div>
+                      )}
                       <textarea
                         value={row[column.key] || ""}
                         onChange={(e) => handleCellChange(idx, column.key, e)}
                         ref={(element) => { if (element) resizeTextarea(element); }}
                         aria-label={`${column.label}, ${row.team_name}`}
                         rows={1}
+                        readOnly={!canEdit}
                       />
                     </td>
                   );
@@ -592,7 +726,7 @@ export default function BoardDetail() {
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm row-drag-handle"
-                      draggable
+                      draggable={canEdit}
                       onDragStart={(event) => handleRowDragStart(idx, event)}
                       onDragEnd={handleRowDragEnd}
                       aria-label={`Переместить строку ${idx + 1}`}
@@ -600,18 +734,78 @@ export default function BoardDetail() {
                     >
                       <GripVertical size={14} />
                     </button>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1 || !canEdit}>
                       <Trash2 size={14} />
                     </button>
                   </div>
                 </td>
                 </tr>
+                {linkedDepartment && isExpanded && rowProjects.map((project) => {
+                  const allProjectTasks = projectTasksByProject.get(project.id) || project.tasks || [];
+                  const projectStatus = getProjectStatus(project, allProjectTasks);
+
+                  return (
+                  <tr key={`project-${project.id}`} className={`department-project-row ${projectStatusClass(projectStatus)}`}>
+                    <td className="team-cell department-project-name">
+                      <strong>{project.name}</strong>
+                      <span className={`project-status-badge ${projectStatusClass(projectStatus)}`}>
+                        {PROJECT_STATUS_LABELS[projectStatus] || PROJECT_STATUS_LABELS.not_started}
+                      </span>
+                    </td>
+                    {columns.map((column) => {
+                      const cellKey = `${project.id}:${column.key}`;
+                      const projectTasks = projectTasksByCell.get(cellKey) || [];
+
+                      return (
+                        <td
+                          key={column.key}
+                          className={`sqdcp-edit-cell department-project-cell${taskDropTarget === cellKey ? " task-drop-target" : ""}`}
+                          onDragOver={(event) => {
+                            if (!canEdit || !draggedTaskId) return;
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                            setTaskDropTarget(cellKey);
+                          }}
+                          onDragLeave={(event) => {
+                            if (event.currentTarget.contains(event.relatedTarget)) return;
+                            if (taskDropTarget === cellKey) setTaskDropTarget("");
+                          }}
+                          onDrop={(event) => {
+                            if (canEdit) assignTaskToProjectCell(project, column.key, event);
+                          }}
+                        >
+                          {projectTasks.length > 0 && (
+                            <div className="cell-task-list">
+                              {projectTasks.map((task) => (
+                                <button
+                                  key={task.id}
+                                  type="button"
+                                  className={`task-pill ${taskStatusClass(task)}`}
+                                  draggable={canEdit}
+                                  onDragStart={(event) => handleTaskDragStart(task, event)}
+                                  onDragEnd={handleTaskDragEnd}
+                                  onClick={() => openTaskDetail(task)}
+                                >
+                                  <strong>{task.name}</strong>
+                                  {task.assignees && <span>{task.assignees}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="row-action-cell"></td>
+                  </tr>
+                  );
+                })}
+                </Fragment>
               );
             })}
           </tbody>
         </table>
       </div>
-      <div className="board-bottom-actions">
+      {canEdit && <div className="board-bottom-actions">
         <button className="btn btn-ghost" onClick={addRow}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
           Добавить новую команду
@@ -620,12 +814,12 @@ export default function BoardDetail() {
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
           Добавить существующий отдел
         </button>
-      </div>
+      </div>}
 
       <section
         className={`board-tasks-section${isUnassignedTaskDropTarget ? " task-drop-target" : ""}`}
         onDragOver={(event) => {
-          if (draggedTaskId === null) return;
+          if (!canEdit || draggedTaskId === null) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
           setIsUnassignedTaskDropTarget(true);
@@ -641,10 +835,10 @@ export default function BoardDetail() {
             <h2>Задачи</h2>
             <p className="page-subtitle">Нераспределённые задачи можно перетащить в ячейки SQDCP-таблицы.</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowTaskCreate(true)}>
+          {canEdit && <button className="btn btn-primary" onClick={() => setShowTaskCreate(true)}>
             <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
             Добавить задачу
-          </button>
+          </button>}
         </div>
 
         {unassignedTasks.length === 0 ? (
@@ -656,7 +850,7 @@ export default function BoardDetail() {
                 key={task.id}
                 type="button"
                 className={`task-card ${taskStatusClass(task)}`}
-                draggable
+                draggable={canEdit}
                 onDragStart={(event) => handleTaskDragStart(task, event)}
                 onDragEnd={handleTaskDragEnd}
                 onClick={() => openTaskDetail(task)}
@@ -759,6 +953,7 @@ export default function BoardDetail() {
                 <input
                   value={selectedTaskForm.name}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, name: event.target.value })}
+                  readOnly={!canEdit}
                 />
               </div>
               <div className="form-group">
@@ -766,6 +961,7 @@ export default function BoardDetail() {
                 <select
                   value={normalizeTaskStatus(selectedTask.status)}
                   onChange={(event) => updateSelectedTaskStatus(event.target.value)}
+                  disabled={!canEdit}
                 >
                   {TASK_STATUSES.map((status) => (
                     <option key={status.value} value={status.value}>{status.label}</option>
@@ -778,6 +974,7 @@ export default function BoardDetail() {
                   value={selectedTaskForm.description}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, description: event.target.value })}
                   rows={5}
+                  readOnly={!canEdit}
                 />
               </div>
               <div className="form-group">
@@ -785,16 +982,17 @@ export default function BoardDetail() {
                 <input
                   value={selectedTaskForm.assignees}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, assignees: event.target.value })}
+                  readOnly={!canEdit}
                 />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)}>
                   Закрыть
                 </button>
-                <button type="button" className="btn btn-danger" onClick={deleteSelectedTask}>
+                {canEdit && <button type="button" className="btn btn-danger" onClick={deleteSelectedTask}>
                   Удалить
-                </button>
-                <button type="submit" className="btn btn-primary">
+                </button>}
+                <button type="submit" className="btn btn-primary" disabled={!canEdit}>
                   Сохранить
                 </button>
               </div>

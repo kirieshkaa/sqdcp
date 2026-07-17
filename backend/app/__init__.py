@@ -21,12 +21,13 @@ def create_app():
     jwt.init_app(app)
 
     with app.app_context():
-        from app.models import user, department, board, sqdcp_row, task
+        from app.models import user, department, board, sqdcp_row, task, department_project
         db.create_all()
         ensure_department_columns()
         ensure_board_columns()
         ensure_sqdcp_row_columns()
         ensure_task_columns()
+        ensure_user_roles()
 
     from app.routers.auth import auth_bp
     from app.routers.boards import boards_bp
@@ -87,5 +88,68 @@ def ensure_task_columns():
     with db.engine.begin() as connection:
         if "department_id" not in existing_columns:
             connection.execute(text("ALTER TABLE tasks ADD COLUMN department_id INTEGER"))
+        if "project_id" not in existing_columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN project_id INTEGER"))
         if "status" not in existing_columns:
             connection.execute(text("ALTER TABLE tasks ADD COLUMN status VARCHAR(20) DEFAULT 'not_started'"))
+
+    board_column = next((column for column in inspect(db.engine).get_columns("tasks") if column["name"] == "board_id"), None)
+    if board_column and not board_column["nullable"]:
+        rebuild_tasks_nullable_board_id()
+
+
+def ensure_user_roles():
+    inspector = inspect(db.engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    with db.engine.begin() as connection:
+        connection.execute(text("UPDATE users SET role = 'minister' WHERE role = 'manager'"))
+        connection.execute(text("UPDATE users SET role = 'department_head' WHERE role IN ('user', 'viewer')"))
+        department_id = connection.execute(
+            text("SELECT id FROM departments WHERE name = :name"),
+            {"name": "Руководитель цифровой трансформации"},
+        ).scalar()
+        if department_id is None:
+            result = connection.execute(
+                text("INSERT INTO departments (name, description, head, workers) VALUES (:name, :description, '', '')"),
+                {
+                    "name": "Руководитель цифровой трансформации",
+                    "description": "Отдел Руководитель цифровой трансформации",
+                },
+            )
+            department_id = result.lastrowid
+        connection.execute(
+            text("UPDATE users SET department_id = :department_id WHERE username = 'department_head'"),
+            {"department_id": department_id},
+        )
+
+
+def rebuild_tasks_nullable_board_id():
+    with db.engine.begin() as connection:
+        connection.execute(text("ALTER TABLE tasks RENAME TO tasks_old_board_nullable"))
+        connection.execute(text("""
+            CREATE TABLE tasks (
+                id INTEGER NOT NULL PRIMARY KEY,
+                board_id INTEGER,
+                row_id INTEGER,
+                department_id INTEGER,
+                project_id INTEGER,
+                column_key VARCHAR(20),
+                name VARCHAR(200) NOT NULL,
+                description TEXT,
+                assignees TEXT,
+                status VARCHAR(20) DEFAULT 'not_started'
+            )
+        """))
+        connection.execute(text("""
+            INSERT INTO tasks (
+                id, board_id, row_id, department_id, project_id,
+                column_key, name, description, assignees, status
+            )
+            SELECT
+                id, board_id, row_id, department_id, project_id,
+                column_key, name, description, assignees, COALESCE(status, 'not_started')
+            FROM tasks_old_board_nullable
+        """))
+        connection.execute(text("DROP TABLE tasks_old_board_nullable"))

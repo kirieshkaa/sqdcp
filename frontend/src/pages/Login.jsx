@@ -139,7 +139,7 @@ export default function Login({ onLogin }) {
             {seeding ? "Создание..." : "Создать тестовые роли"}
           </button>
           <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.5rem" }}>
-            admin, manager, user1, viewer — пароль: test123
+            admin, minister, department_head — пароль: test123
           </div>
         </div>
       </div>

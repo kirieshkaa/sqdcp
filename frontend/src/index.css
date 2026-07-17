@@ -493,6 +493,46 @@ td { font-size: 0.9rem; }
   gap: 0.75rem;
 }
 
+.department-projects-panel {
+  margin-top: 1rem;
+}
+
+.department-project-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.department-project-item {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+}
+
+.department-project-item.project-status-not_started {
+  border-color: rgba(239,68,68,0.45);
+  background: rgba(239,68,68,0.1);
+}
+
+.department-project-item.project-status-in_progress {
+  border-color: rgba(234,179,8,0.5);
+  background: rgba(234,179,8,0.12);
+}
+
+.department-project-item.project-status-done {
+  border-color: rgba(34,197,94,0.45);
+  background: rgba(34,197,94,0.1);
+}
+
+.department-project-item small {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
 .department-task-item {
   width: 100%;
   padding: 0.9rem 1rem;
@@ -792,6 +832,116 @@ td { font-size: 0.9rem; }
   overflow-wrap: anywhere;
 }
 
+.department-project-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.55rem;
+  padding: 0.45rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.department-project-toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.department-project-toggle span {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.department-task-count {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.75rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.department-task-count strong {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.department-task-count span {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.department-project-row {
+  background: rgba(15,23,42,0.16);
+}
+
+.department-project-row.project-status-not_started,
+.canban-project-row.project-status-not_started {
+  background: rgba(239,68,68,0.1);
+}
+
+.department-project-row.project-status-in_progress,
+.canban-project-row.project-status-in_progress {
+  background: rgba(234,179,8,0.12);
+}
+
+.department-project-row.project-status-done,
+.canban-project-row.project-status-done {
+  background: rgba(34,197,94,0.1);
+}
+
+.department-project-name {
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.project-status-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.45rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.project-status-badge.project-status-not_started {
+  background: rgba(239,68,68,0.18);
+  border-color: rgba(239,68,68,0.5);
+}
+
+.project-status-badge.project-status-in_progress {
+  background: rgba(234,179,8,0.22);
+  border-color: rgba(234,179,8,0.55);
+}
+
+.project-status-badge.project-status-done {
+  background: rgba(34,197,94,0.18);
+  border-color: rgba(34,197,94,0.5);
+}
+
+.department-project-cell {
+  min-height: 112px;
+}
+
 .sqdcp-edit-cell {
   padding: 0.35rem;
   vertical-align: top;
@@ -1047,6 +1197,19 @@ td { font-size: 0.9rem; }
 .canban-toolbar .form-group {
   flex: 1 1 320px;
   margin-bottom: 0;
+}
+
+.readonly-field {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
 }
 
 .canban-board {

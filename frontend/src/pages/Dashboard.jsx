@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { Plus, Columns3, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import { UserContext } from "../App";
+import { canEditBoards } from "../permissions";
 
 export default function Dashboard() {
+  const user = useContext(UserContext);
+  const canEdit = canEditBoards(user);
   const [boards, setBoards] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState("");
@@ -29,6 +33,7 @@ export default function Dashboard() {
 
   const createBoard = async (e) => {
     e.preventDefault();
+    if (!canEdit) return;
     setError("");
     const board = await api.createBoard({ title: title.trim() || "Новая SQDCP-доска" });
     setShowModal(false);
@@ -37,7 +42,7 @@ export default function Dashboard() {
   };
 
   const deleteBoard = async () => {
-    if (!boardToDelete) return;
+    if (!boardToDelete || !canEdit) return;
     await api.deleteBoard(boardToDelete.id);
     setBoardToDelete(null);
     load();
@@ -50,10 +55,10 @@ export default function Dashboard() {
           <h1>SQDCP-доски</h1>
           <p className="page-subtitle">Выберите существующую SQDCP доску или создайте новую</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        {canEdit && <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
           Создать доску
-        </button>
+        </button>}
       </div>
 
       {error && <div className="form-error">{error}</div>}
@@ -73,7 +78,7 @@ export default function Dashboard() {
                 <h3>{board.title}</h3>
               </div>
               <div className="board-card-footer">
-                <button
+                {canEdit && <button
                   className="btn btn-ghost btn-sm delete-icon-button"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -82,7 +87,7 @@ export default function Dashboard() {
                   aria-label={`Удалить доску ${board.title}`}
                 >
                   <Trash2 size={14} />
-                </button>
+                </button>}
                 <div className="board-meta">ID: {board.id}</div>
               </div>
             </div>

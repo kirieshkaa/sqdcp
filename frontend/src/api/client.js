@@ -66,4 +66,7 @@ export const api = {
   updateDepartment: (id, data) => request(`/api/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteDepartment: (id) => request(`/api/departments/${id}`, { method: "DELETE" }),
   createDepartmentTask: (departmentId, data) => request(`/api/departments/${departmentId}/tasks`, { method: "POST", body: JSON.stringify(data) }),
+  createDepartmentProject: (departmentId, data) => request(`/api/departments/${departmentId}/projects`, { method: "POST", body: JSON.stringify(data) }),
+  updateDepartmentProject: (departmentId, projectId, data) => request(`/api/departments/${departmentId}/projects/${projectId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteDepartmentProject: (departmentId, projectId) => request(`/api/departments/${departmentId}/projects/${projectId}`, { method: "DELETE" }),
 };

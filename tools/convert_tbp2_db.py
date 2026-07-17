@@ -10,7 +10,8 @@ BOARD_COLUMNS = ("id", "title", "description", "owner_id", "department_id", "cre
 DEPARTMENT_COLUMNS = ("id", "name", "description", "head", "workers")
 USER_COLUMNS = ("id", "username", "email", "hashed_password", "role", "department_id", "status")
 ROW_COLUMNS = ("id", "board_id", "team_name", "position", "safety", "quality", "delivery", "cost", "people", "department_id")
-TASK_COLUMNS = ("id", "board_id", "row_id", "department_id", "column_key", "name", "description", "assignees", "status")
+PROJECT_COLUMNS = ("id", "department_id", "name", "position")
+TASK_COLUMNS = ("id", "board_id", "row_id", "department_id", "project_id", "column_key", "name", "description", "assignees", "status")
 SQDCP_COLUMNS = ("safety", "quality", "delivery", "cost", "people")
 
 
@@ -114,14 +115,22 @@ def create_schema(connection):
 
         CREATE TABLE tasks (
             id INTEGER NOT NULL PRIMARY KEY,
-            board_id INTEGER NOT NULL,
+            board_id INTEGER,
             row_id INTEGER,
             department_id INTEGER,
+            project_id INTEGER,
             column_key VARCHAR(20),
             name VARCHAR(200) NOT NULL,
             description TEXT,
             assignees TEXT,
             status VARCHAR(20) DEFAULT 'not_started'
+        );
+
+        CREATE TABLE department_projects (
+            id INTEGER NOT NULL PRIMARY KEY,
+            department_id INTEGER NOT NULL,
+            name VARCHAR(200) NOT NULL,
+            position INTEGER
         );
         """
     )
@@ -142,6 +151,20 @@ def migrate_departments(source, target):
             "description": row.get("description") or "",
             "head": first_present(row, ("head", "head_name", "manager", "manager_name"), ""),
             "workers": first_present(row, ("workers", "employees", "members"), ""),
+        })
+
+
+def migrate_projects(source, target):
+    for index, row in enumerate(row_dicts(source, "department_projects"), start=1):
+        department_id = row.get("department_id")
+        if department_id is None:
+            continue
+
+        insert_row(target, "department_projects", PROJECT_COLUMNS, {
+            "id": row.get("id") or index,
+            "department_id": department_id,
+            "name": first_present(row, ("name", "title"), f"Проект {index}"),
+            "position": row.get("position") if row.get("position") is not None else index - 1,
         })
 
 
@@ -199,6 +222,7 @@ def migrate_tasks(source, target):
             "board_id": row.get("board_id"),
             "row_id": row.get("row_id"),
             "department_id": row.get("department_id"),
+            "project_id": row.get("project_id"),
             "column_key": column_key,
             "name": first_present(row, ("name", "title"), f"Задача {index}"),
             "description": row.get("description") or "",
@@ -248,6 +272,7 @@ def convert_database(source_path, output_path):
     try:
         create_schema(target)
         migrate_departments(source, target)
+        migrate_projects(source, target)
         migrate_users(source, target)
         migrate_boards(source, target)
         migrate_rows(source, target)

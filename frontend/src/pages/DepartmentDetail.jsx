@@ -1,18 +1,27 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import { UserContext } from "../App";
+import { canEditDepartments } from "../permissions";
 
 const TASK_STATUSES = [
   { value: "not_started", label: "не начата" },
   { value: "in_progress", label: "в работе" },
   { value: "done", label: "выполнена" },
 ];
+const PROJECT_STATUS_LABELS = {
+  not_started: "\u043d\u0435 \u043d\u0430\u0447\u0430\u0442",
+  in_progress: "\u0432 \u0440\u0430\u0431\u043e\u0442\u0435",
+  done: "\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d",
+};
 
 export default function DepartmentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const user = useContext(UserContext);
+  const canEdit = canEditDepartments(user);
   const [department, setDepartment] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -44,10 +53,12 @@ export default function DepartmentDetail() {
   }, [id]);
 
   const updateField = (field, value) => {
+    if (!canEdit) return;
     setDepartment({ ...department, [field]: value });
   };
 
   const saveDepartment = async () => {
+    if (!canEdit) return;
     setSaving(true);
     setError("");
     try {
@@ -64,6 +75,7 @@ export default function DepartmentDetail() {
   };
 
   const deleteDepartment = async () => {
+    if (!canEdit) return;
     await api.deleteDepartment(id);
     setShowDeleteConfirm(false);
     navigate("/departments");
@@ -81,7 +93,7 @@ export default function DepartmentDetail() {
 
   const updateSelectedTaskDetails = async (event) => {
     event.preventDefault();
-    if (!selectedTask) return;
+    if (!selectedTask || !canEdit) return;
 
     setTaskSaving(true);
     setError("");
@@ -100,6 +112,12 @@ export default function DepartmentDetail() {
         assigned_tasks: (currentDepartment.assigned_tasks || []).map((task) => (
           task.id === mergedTask.id ? mergedTask : task
         )),
+        projects: (currentDepartment.projects || []).map((project) => ({
+          ...project,
+          tasks: (project.tasks || []).map((task) => (
+            task.id === mergedTask.id ? mergedTask : task
+          )),
+        })),
       }));
     } catch (err) {
       setError(err.message);
@@ -124,14 +142,14 @@ export default function DepartmentDetail() {
           </div>
         </div>
         <div className="board-actions">
-          <button className="btn btn-primary" onClick={saveDepartment} disabled={saving}>
+          {canEdit && <button className="btn btn-primary" onClick={saveDepartment} disabled={saving}>
             <Save size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
             {saving ? "Сохранение..." : "Сохранить"}
-          </button>
-          <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+          </button>}
+          {canEdit && <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
             <Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
             Удалить отдел
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -143,6 +161,7 @@ export default function DepartmentDetail() {
           <input
             value={department.name || ""}
             onChange={(event) => updateField("name", event.target.value)}
+            readOnly={!canEdit}
           />
         </div>
         <div className="form-group">
@@ -150,6 +169,7 @@ export default function DepartmentDetail() {
           <input
             value={department.head || ""}
             onChange={(event) => updateField("head", event.target.value)}
+            readOnly={!canEdit}
             placeholder="ФИО заведующего"
           />
         </div>
@@ -160,6 +180,7 @@ export default function DepartmentDetail() {
             onChange={(event) => updateField("workers", event.target.value)}
             placeholder="Список работников"
             rows={10}
+            readOnly={!canEdit}
           />
         </div>
         <div className="form-group">
@@ -205,6 +226,31 @@ export default function DepartmentDetail() {
         </div>
       </div>
 
+      <div className="department-detail-panel department-projects-panel">
+        <div className="form-group">
+          <label>Проекты отдела:</label>
+          {department.projects?.length > 0 ? (
+            <div className="department-project-list">
+              {department.projects.map((project) => {
+                const projectStatus = getProjectStatus(project);
+
+                return (
+                  <div key={project.id} className={`department-project-item ${projectStatusClass(projectStatus)}`}>
+                    <strong>{project.name}</strong>
+                    <span className={`project-status-badge ${projectStatusClass(projectStatus)}`}>
+                      {PROJECT_STATUS_LABELS[projectStatus] || PROJECT_STATUS_LABELS.not_started}
+                    </span>
+                    <small>{(project.tasks || []).length} задач</small>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="department-empty-participation">У отдела пока нет проектов.</div>
+          )}
+        </div>
+      </div>
+
       {showDeleteConfirm && (
         <ConfirmDeleteModal
           title="Удалить отдел?"
@@ -224,6 +270,7 @@ export default function DepartmentDetail() {
                 <input
                   value={selectedTaskForm.name}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, name: event.target.value })}
+                  readOnly={!canEdit}
                 />
               </div>
               <div className="form-group">
@@ -235,6 +282,7 @@ export default function DepartmentDetail() {
                 <select
                   value={selectedTaskForm.status}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, status: event.target.value })}
+                  disabled={!canEdit}
                 >
                   {TASK_STATUSES.map((status) => (
                     <option key={status.value} value={status.value}>{status.label}</option>
@@ -247,6 +295,7 @@ export default function DepartmentDetail() {
                   value={selectedTaskForm.description}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, description: event.target.value })}
                   rows={5}
+                  readOnly={!canEdit}
                 />
               </div>
               <div className="form-group">
@@ -254,6 +303,7 @@ export default function DepartmentDetail() {
                 <input
                   value={selectedTaskForm.assignees}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, assignees: event.target.value })}
+                  readOnly={!canEdit}
                 />
               </div>
               <div className="modal-actions">
@@ -263,7 +313,7 @@ export default function DepartmentDetail() {
                 <button type="button" className="btn btn-ghost" onClick={() => navigate(`/boards/${selectedTask.board_id}`)} disabled={taskSaving}>
                   Открыть доску
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={taskSaving}>
+                <button type="submit" className="btn btn-primary" disabled={taskSaving || !canEdit}>
                   {taskSaving ? "Сохранение..." : "Сохранить"}
                 </button>
               </div>
@@ -277,4 +327,19 @@ export default function DepartmentDetail() {
 
 function normalizeTaskStatus(status) {
   return TASK_STATUSES.some((item) => item.value === status) ? status : "not_started";
+}
+
+function projectStatusClass(status) {
+  return `project-status-${normalizeTaskStatus(status)}`;
+}
+
+function getProjectStatus(project) {
+  const tasks = project.tasks || [];
+  if (tasks.length === 0) return "not_started";
+
+  const statuses = tasks.map((task) => normalizeTaskStatus(task.status));
+  if (statuses.includes("not_started")) return "not_started";
+  if (statuses.includes("in_progress")) return "in_progress";
+  if (statuses.every((status) => status === "done")) return "done";
+  return normalizeTaskStatus(project.status);
 }
