@@ -15,19 +15,19 @@
 }
 
 :root[data-theme="light"] {
-  --bg-primary: #eef2f6;
-  --bg-secondary: #f8fafc;
-  --bg-card: #f9fbfd;
+  --bg-primary: #f5f0eb;
+  --bg-secondary: #faf7f4;
+  --bg-card: #fdfcf9;
   --bg-hover: #e5ebf2;
-  --text-primary: #223044;
-  --text-secondary: #6f7f91;
-  --accent: #4f6f9f;
-  --accent-hover: #3f5f8b;
+  --text-primary: #3d352e;
+  --text-secondary: #8f877d;
+  --accent: #7c9ec0;
+  --accent-hover: #6b8db0;
   --accent-light: #e3eaf3;
-  --border: #d9e1ea;
-  --success: #3f8f62;
-  --warning: #b9872f;
-  --danger: #bf4b4b;
+  --border: #e5ded6;
+  --success: #8fbc8f;
+  --warning: #d4b87a;
+  --danger: #d49a9a;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -410,6 +410,99 @@ td { font-size: 0.9rem; }
 .department-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.admin-table {
+  min-width: 860px;
+}
+
+.admin-table th,
+.admin-table td {
+  vertical-align: top;
+}
+
+.admin-table td {
+  line-height: 1.45;
+}
+
+.stats-table th,
+.stats-table td {
+  text-align: center;
+}
+
+.stats-table th:first-child,
+.stats-table td:first-child {
+  text-align: left;
+}
+
+.admin-muted {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.admin-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.registration-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 0.9fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.registration-card h3 {
+  margin-bottom: 0.35rem;
+}
+
+.registration-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.registration-controls label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.registration-controls select {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.registration-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 980px) {
+  .registration-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .registration-actions {
+    justify-content: flex-start;
+  }
 }
 
 .department-card h3 {
@@ -1199,6 +1292,10 @@ td { font-size: 0.9rem; }
   margin-bottom: 0;
 }
 
+.canban-toolbar > .btn-primary {
+  display: none;
+}
+
 .readonly-field {
   width: 100%;
   min-height: 44px;
@@ -1268,8 +1365,47 @@ td { font-size: 0.9rem; }
   min-height: 78px;
 }
 
+.canban-project-placeholder {
+  margin-top: 1rem;
+}
+
+.canban-task-modal {
+  width: min(760px, 94vw);
+}
+
+.canban-task-modal .modal-actions {
+  flex-wrap: wrap;
+}
+
+.canban-task-modal .modal-actions .btn {
+  flex: 0 0 auto;
+}
+
 .canban-sqdcp-section {
   margin-top: 1.5rem;
+}
+
+.canban-sqdcp-section-first {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+.canban-project-cell {
+  cursor: pointer;
+}
+
+.canban-project-row.selected-project-row {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.canban-cell-add-task {
+  width: 100%;
+  margin-top: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
 }
 
 .canban-sqdcp-header {
@@ -1495,6 +1631,64 @@ td { font-size: 0.9rem; }
   margin-top: 0.35rem;
   color: var(--text-secondary);
   font-size: 0.8rem;
+}
+
+.calendar-board-project-stats {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+  overflow-x: auto;
+  padding-bottom: 0.05rem;
+}
+
+.calendar-board-project-stats span {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 0.22rem 0.45rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.calendar-board-project-stats .calendar-stat-not-started {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.calendar-board-project-stats .calendar-stat-in-progress {
+  background: rgba(234, 179, 8, 0.18);
+  border-color: rgba(234, 179, 8, 0.48);
+  color: #fde68a;
+}
+
+.calendar-board-project-stats .calendar-stat-done {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #86efac;
+}
+
+:root[data-theme="light"] .calendar-board-project-stats .calendar-stat-not-started {
+  background: rgba(212, 154, 154, 0.3);
+  border-color: rgba(191, 75, 75, 0.36);
+  color: #7f2d2d;
+}
+
+:root[data-theme="light"] .calendar-board-project-stats .calendar-stat-in-progress {
+  background: rgba(212, 184, 122, 0.34);
+  border-color: rgba(180, 130, 45, 0.36);
+  color: #6f4f13;
+}
+
+:root[data-theme="light"] .calendar-board-project-stats .calendar-stat-done {
+  background: rgba(143, 188, 143, 0.34);
+  border-color: rgba(63, 143, 98, 0.36);
+  color: #285b3f;
 }
 
 .calendar-empty-day {

@@ -11,7 +11,7 @@ DEPARTMENT_COLUMNS = ("id", "name", "description", "head", "workers")
 USER_COLUMNS = ("id", "username", "email", "hashed_password", "role", "department_id", "status")
 ROW_COLUMNS = ("id", "board_id", "team_name", "position", "safety", "quality", "delivery", "cost", "people", "department_id")
 PROJECT_COLUMNS = ("id", "department_id", "name", "position")
-TASK_COLUMNS = ("id", "board_id", "row_id", "department_id", "project_id", "column_key", "name", "description", "assignees", "status")
+TASK_COLUMNS = ("id", "board_id", "row_id", "department_id", "project_id", "column_key", "name", "description", "assignees", "status", "due_date")
 SQDCP_COLUMNS = ("safety", "quality", "delivery", "cost", "people")
 
 
@@ -123,7 +123,8 @@ def create_schema(connection):
             name VARCHAR(200) NOT NULL,
             description TEXT,
             assignees TEXT,
-            status VARCHAR(20) DEFAULT 'not_started'
+            status VARCHAR(20) DEFAULT 'not_started',
+            due_date VARCHAR(10) DEFAULT ''
         );
 
         CREATE TABLE department_projects (
@@ -228,6 +229,7 @@ def migrate_tasks(source, target):
             "description": row.get("description") or "",
             "assignees": first_present(row, ("assignees", "responsible", "owner"), ""),
             "status": normalize_task_status(row.get("status")),
+            "due_date": first_present(row, ("due_date", "deadline", "finish_date", "date"), ""),
         })
 
 

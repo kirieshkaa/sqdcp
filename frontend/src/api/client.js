@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 class ApiError extends Error {
   constructor(status, body) {
@@ -47,6 +47,10 @@ export const api = {
   register: (data) =>
     request("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
   getMe: () => request("/api/auth/me"),
+  getRegistrationDepartments: () => request("/api/auth/registration-departments"),
+  getPendingRegistrations: () => request("/api/auth/pending"),
+  approveRegistration: (id, data) => request(`/api/auth/approve/${id}`, { method: "POST", body: JSON.stringify(data) }),
+  rejectRegistration: (id) => request(`/api/auth/reject/${id}`, { method: "POST" }),
   seed: (password) =>
     request("/api/auth/seed", { method: "POST", body: JSON.stringify({ password: password || "test123" }) }),
 
@@ -66,7 +70,11 @@ export const api = {
   updateDepartment: (id, data) => request(`/api/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteDepartment: (id) => request(`/api/departments/${id}`, { method: "DELETE" }),
   createDepartmentTask: (departmentId, data) => request(`/api/departments/${departmentId}/tasks`, { method: "POST", body: JSON.stringify(data) }),
+  deleteDepartmentTask: (departmentId, taskId) => request(`/api/departments/${departmentId}/tasks/${taskId}`, { method: "DELETE" }),
   createDepartmentProject: (departmentId, data) => request(`/api/departments/${departmentId}/projects`, { method: "POST", body: JSON.stringify(data) }),
   updateDepartmentProject: (departmentId, projectId, data) => request(`/api/departments/${departmentId}/projects/${projectId}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteDepartmentProject: (departmentId, projectId) => request(`/api/departments/${departmentId}/projects/${projectId}`, { method: "DELETE" }),
+
+  getLogs: () => request("/api/admin/logs"),
+  getSqdcpStats: () => request("/api/admin/sqdcp-stats"),
 };

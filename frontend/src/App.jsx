@@ -9,7 +9,10 @@ import Calendar from "./pages/Calendar";
 import Canban from "./pages/Canban";
 import Departments from "./pages/Departments";
 import DepartmentDetail from "./pages/DepartmentDetail";
-import { canUseBoards, canUseCalendar, canUseCanban, canUseDepartments, defaultPathForUser } from "./permissions";
+import Logs from "./pages/Logs";
+import SqdcpStats from "./pages/SqdcpStats";
+import Registrations from "./pages/Registrations";
+import { canUseAdminPages, canUseBoards, canUseCalendar, canUseCanban, canUseDepartments, defaultPathForUser } from "./permissions";
 
 export const UserContext = createContext(null);
 
@@ -68,6 +71,10 @@ function App() {
             <Route path="/canban" element={guard(canUseCanban(user), <Canban />)} />
             <Route path="/departments" element={guard(canUseDepartments(user), <Departments />)} />
             <Route path="/departments/:id" element={guard(canUseDepartments(user), <DepartmentDetail />)} />
+            <Route path="/logs" element={guard(canUseAdminPages(user), <Logs />)} />
+            <Route path="/sqdcp-stats" element={guard(canUseAdminPages(user), <SqdcpStats />)} />
+            <Route path="/sqdcp stats" element={guard(canUseAdminPages(user), <SqdcpStats />)} />
+            <Route path="/registrations" element={guard(canUseAdminPages(user), <Registrations />)} />
             <Route path="*" element={<Navigate to={defaultPath} />} />
           </Routes>
         </main>

@@ -96,10 +96,9 @@ function getProjectStatus(project, projectTasks) {
   if (tasks.length === 0) return "not_started";
 
   const statuses = tasks.map((task) => normalizeTaskStatus(task.status));
-  if (statuses.includes("not_started")) return "not_started";
-  if (statuses.includes("in_progress")) return "in_progress";
   if (statuses.every((status) => status === "done")) return "done";
-  return normalizeTaskStatus(project.status);
+  if (statuses.every((status) => status === "not_started")) return "not_started";
+  return "in_progress";
 }
 
 function collectBoardTasks(board) {
@@ -125,8 +124,8 @@ export default function BoardDetail() {
   const [tasks, setTasks] = useState([]);
   const [showTaskCreate, setShowTaskCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [selectedTaskForm, setSelectedTaskForm] = useState({ name: "", description: "", assignees: "" });
-  const [taskForm, setTaskForm] = useState({ name: "", description: "", assignees: "" });
+  const [selectedTaskForm, setSelectedTaskForm] = useState({ name: "", description: "", assignees: "", due_date: "" });
+  const [taskForm, setTaskForm] = useState({ name: "", description: "", assignees: "", due_date: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -340,7 +339,7 @@ export default function BoardDetail() {
     try {
       const task = await api.createBoardTask(id, taskForm);
       setTasks([...tasks, task]);
-      setTaskForm({ name: "", description: "", assignees: "" });
+      setTaskForm({ name: "", description: "", assignees: "", due_date: "" });
       setShowTaskCreate(false);
     } catch (err) {
       setError(err.message);
@@ -353,6 +352,7 @@ export default function BoardDetail() {
       name: task.name || "",
       description: task.description || "",
       assignees: task.assignees || "",
+      due_date: task.due_date || "",
     });
   };
 
@@ -373,6 +373,7 @@ export default function BoardDetail() {
       setTasks((currentTasks) => currentTasks.map((task) => (
         task.id === updatedTask.id ? updatedTask : task
       )));
+      setSelectedTask(null);
     } catch (err) {
       setError(err.message);
     }
@@ -390,6 +391,7 @@ export default function BoardDetail() {
         name: updatedTask.name || "",
         description: updatedTask.description || "",
         assignees: updatedTask.assignees || "",
+        due_date: updatedTask.due_date || "",
       });
       setTasks((currentTasks) => currentTasks.map((task) => (
         task.id === updatedTask.id ? updatedTask : task
@@ -930,6 +932,14 @@ export default function BoardDetail() {
                   onChange={(event) => setTaskForm({ ...taskForm, assignees: event.target.value })}
                 />
               </div>
+              <div className="form-group">
+                <label>Дата выполнения задачи</label>
+                <input
+                  type="date"
+                  value={taskForm.due_date}
+                  onChange={(event) => setTaskForm({ ...taskForm, due_date: event.target.value })}
+                />
+              </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowTaskCreate(false)}>
                   Отмена
@@ -982,6 +992,15 @@ export default function BoardDetail() {
                 <input
                   value={selectedTaskForm.assignees}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, assignees: event.target.value })}
+                  readOnly={!canEdit}
+                />
+              </div>
+              <div className="form-group">
+                <label>Дата выполнения задачи</label>
+                <input
+                  type="date"
+                  value={selectedTaskForm.due_date}
+                  onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, due_date: event.target.value })}
                   readOnly={!canEdit}
                 />
               </div>

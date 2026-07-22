@@ -15,11 +15,8 @@ export default function Login({ onLogin }) {
     if (departments.length > 0) return;
     setLoadingDepts(true);
     try {
-      const token = localStorage.getItem("token");
-      if (token) {
-        const depts = await api.getDepartments();
-        setDepartments(depts);
-      }
+      const depts = await api.getRegistrationDepartments();
+      setDepartments(depts);
     } catch {}
     setLoadingDepts(false);
   };
@@ -112,7 +109,11 @@ export default function Login({ onLogin }) {
               </div>
               <div className="form-group">
                 <label>Отдел</label>
-                <select value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
+                <select
+                  value={form.department_id}
+                  onChange={(e) => setForm({ ...form, department_id: e.target.value })}
+                  disabled={loadingDepts}
+                >
                   <option value="">Выберите отдел</option>
                   {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>

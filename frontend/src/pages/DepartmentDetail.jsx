@@ -29,6 +29,7 @@ export default function DepartmentDetail() {
     name: "",
     description: "",
     assignees: "",
+    due_date: "",
     status: "not_started",
   });
   const [loading, setLoading] = useState(true);
@@ -87,6 +88,7 @@ export default function DepartmentDetail() {
       name: task.name || "",
       description: task.description || "",
       assignees: task.assignees || "",
+      due_date: task.due_date || "",
       status: normalizeTaskStatus(task.status),
     });
   };
@@ -105,6 +107,7 @@ export default function DepartmentDetail() {
         name: mergedTask.name || "",
         description: mergedTask.description || "",
         assignees: mergedTask.assignees || "",
+        due_date: mergedTask.due_date || "",
         status: normalizeTaskStatus(mergedTask.status),
       });
       setDepartment((currentDepartment) => ({
@@ -119,6 +122,7 @@ export default function DepartmentDetail() {
           )),
         })),
       }));
+      setSelectedTask(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -306,6 +310,15 @@ export default function DepartmentDetail() {
                   readOnly={!canEdit}
                 />
               </div>
+              <div className="form-group">
+                <label>Дата выполнения задачи</label>
+                <input
+                  type="date"
+                  value={selectedTaskForm.due_date}
+                  onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, due_date: event.target.value })}
+                  readOnly={!canEdit}
+                />
+              </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)} disabled={taskSaving}>
                   Закрыть
@@ -338,8 +351,7 @@ function getProjectStatus(project) {
   if (tasks.length === 0) return "not_started";
 
   const statuses = tasks.map((task) => normalizeTaskStatus(task.status));
-  if (statuses.includes("not_started")) return "not_started";
-  if (statuses.includes("in_progress")) return "in_progress";
   if (statuses.every((status) => status === "done")) return "done";
-  return normalizeTaskStatus(project.status);
+  if (statuses.every((status) => status === "not_started")) return "not_started";
+  return "in_progress";
 }

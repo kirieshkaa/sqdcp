@@ -115,12 +115,12 @@ export default function Calendar() {
         </div>
         <div className="month-picker-control">
           <CalendarDays size={18} />
-          <select value={monthIndex} onChange={(e) => handleMonthChange(e.target.value)}>
+          <select value={monthIndex} onChange={(event) => handleMonthChange(event.target.value)}>
             {MONTHS.map((monthName, idx) => (
               <option key={monthName} value={idx}>{monthName}</option>
             ))}
           </select>
-          <select value={year} onChange={(e) => handleYearChange(e.target.value)} aria-label="Год">
+          <select value={year} onChange={(event) => handleYearChange(event.target.value)} aria-label="Год">
             {Array.from({ length: 9 }, (_, idx) => currentDate.getFullYear() - 4 + idx).map((yearOption) => (
               <option key={yearOption} value={yearOption}>{yearOption}</option>
             ))}
@@ -172,15 +172,22 @@ export default function Calendar() {
                 <div key={board.id} className="calendar-board-item">
                   <button className="calendar-board-open" onClick={() => navigate(`/boards/${board.id}`)}>
                     <strong>{board.title}</strong>
+                    <div className="calendar-board-project-stats">
+                      <span className="calendar-stat-not-started">Не начаты: {board.project_stats?.not_started || 0}</span>
+                      <span className="calendar-stat-in-progress">В работе: {board.project_stats?.in_progress || 0}</span>
+                      <span className="calendar-stat-done">Выполнены: {board.project_stats?.done || 0}</span>
+                    </div>
                     <span>ID: {board.id}</span>
                   </button>
-                  {canEdit && <button
-                    className="btn btn-ghost btn-sm delete-icon-button"
-                    onClick={() => setBoardToDelete(board)}
-                    aria-label={`Удалить доску ${board.title}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>}
+                  {canEdit && (
+                    <button
+                      className="btn btn-ghost btn-sm delete-icon-button"
+                      onClick={() => setBoardToDelete(board)}
+                      aria-label={`Удалить доску ${board.title}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

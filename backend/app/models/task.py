@@ -14,3 +14,4 @@ class Task(db.Model):
     description = db.Column(db.Text, default="")
     assignees = db.Column(db.Text, default="")
     status = db.Column(db.String(20), default="not_started")
+    due_date = db.Column(db.String(10), default="")

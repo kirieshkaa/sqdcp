@@ -51,6 +51,15 @@ def get_valid_department_id(value):
     return department_id if Department.query.get(department_id) else None
 
 
+@auth_bp.route("/registration-departments", methods=["GET"])
+def list_registration_departments():
+    departments = Department.query.order_by(Department.name.asc(), Department.id.asc()).all()
+    return jsonify([
+        {"id": department.id, "name": department.name}
+        for department in departments
+    ])
+
+
 @auth_bp.route("/register", methods=["POST"])
 def register():
     data = request.get_json() or {}

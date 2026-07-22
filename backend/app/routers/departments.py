@@ -1,6 +1,9 @@
+from datetime import datetime
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app import db
+from app.activity import log_activity
 from app.models.board import Board
 from app.models.department import Department
 from app.models.department_project import DepartmentProject
@@ -31,7 +34,17 @@ def serialize_assigned_task(task):
         "assignees": task.assignees or "",
         "column_key": task.column_key or "",
         "status": normalize_task_status(task.status),
+        "due_date": task.due_date or "",
     }
+
+
+def normalize_task_due_date(value):
+    if not value:
+        return ""
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        return ""
 
 
 def get_project_status(tasks):
@@ -39,13 +52,11 @@ def get_project_status(tasks):
         return DEFAULT_TASK_STATUS
 
     statuses = [normalize_task_status(task.status) for task in tasks]
-    if "not_started" in statuses:
-        return "not_started"
-    if "in_progress" in statuses:
-        return "in_progress"
     if all(status == "done" for status in statuses):
         return "done"
-    return DEFAULT_TASK_STATUS
+    if all(status == "not_started" for status in statuses):
+        return "not_started"
+    return "in_progress"
 
 
 def serialize_department_project(project):
@@ -179,7 +190,8 @@ def update_department(department_id):
 @departments_bp.route("/<int:department_id>/tasks", methods=["POST"])
 @jwt_required()
 def create_department_task(department_id):
-    if not can_edit_department_canban(get_current_user(), department_id):
+    current_user = get_current_user()
+    if not can_edit_department_canban(current_user, department_id):
         return forbidden()
 
     department = Department.query.get(department_id)
@@ -210,16 +222,60 @@ def create_department_task(department_id):
         description=(data.get("description") or "").strip(),
         assignees=(data.get("assignees") or "").strip(),
         status="not_started",
+        due_date=normalize_task_due_date(data.get("due_date")),
     )
     db.session.add(task)
+    db.session.flush()
+    log_activity(
+        "task_created",
+        "task",
+        entity_id=task.id,
+        user=current_user,
+        board_id=task.board_id,
+        task_id=task.id,
+        department_id=department.id,
+        column_key=task.column_key,
+        summary=f"Создана задача «{task.name}»",
+        details=serialize_assigned_task(task),
+    )
     db.session.commit()
     return jsonify(serialize_assigned_task(task)), 201
+
+
+@departments_bp.route("/<int:department_id>/tasks/<int:task_id>", methods=["DELETE"])
+@jwt_required()
+def delete_department_task(department_id, task_id):
+    current_user = get_current_user()
+    if not can_edit_department_canban(current_user, department_id):
+        return forbidden()
+
+    task = Task.query.filter_by(id=task_id, department_id=department_id).first()
+    if not task:
+        return jsonify({"ok": True})
+
+    log_activity(
+        "task_deleted",
+        "task",
+        entity_id=task.id,
+        user=current_user,
+        board_id=task.board_id,
+        task_id=task.id,
+        project_id=task.project_id,
+        department_id=task.department_id,
+        column_key=task.column_key,
+        summary=f"Удалена задача «{task.name}»",
+        details=serialize_assigned_task(task),
+    )
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @departments_bp.route("/<int:department_id>/projects", methods=["POST"])
 @jwt_required()
 def create_department_project(department_id):
-    if not can_edit_department_canban(get_current_user(), department_id):
+    current_user = get_current_user()
+    if not can_edit_department_canban(current_user, department_id):
         return forbidden()
 
     department = Department.query.get(department_id)
@@ -239,6 +295,17 @@ def create_department_project(department_id):
         position=position,
     )
     db.session.add(project)
+    db.session.flush()
+    log_activity(
+        "project_created",
+        "project",
+        entity_id=project.id,
+        user=current_user,
+        project_id=project.id,
+        department_id=department.id,
+        summary=f"Создан проект «{project.name}»",
+        details=serialize_department_project(project),
+    )
     db.session.commit()
     return jsonify(serialize_department_project(project)), 201
 
@@ -246,7 +313,8 @@ def create_department_project(department_id):
 @departments_bp.route("/<int:department_id>/projects/<int:project_id>", methods=["PUT"])
 @jwt_required()
 def update_department_project(department_id, project_id):
-    if not can_edit_department_canban(get_current_user(), department_id):
+    current_user = get_current_user()
+    if not can_edit_department_canban(current_user, department_id):
         return forbidden()
 
     project = DepartmentProject.query.filter_by(id=project_id, department_id=department_id).first()
@@ -254,11 +322,27 @@ def update_department_project(department_id, project_id):
         return jsonify({"error": "Проект не найден"}), 404
 
     data = request.get_json() or {}
-    name = (data.get("name") or "").strip()
+    name = (data.get("name") or project.name).strip()
     if not name:
         return jsonify({"error": "Название проекта обязательно"}), 400
 
+    before = serialize_department_project(project)
     project.name = name
+    if "position" in data:
+        try:
+            project.position = max(0, int(data.get("position")))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Некорректная позиция проекта"}), 400
+    log_activity(
+        "project_updated",
+        "project",
+        entity_id=project.id,
+        user=current_user,
+        project_id=project.id,
+        department_id=department_id,
+        summary=f"Обновлен проект «{project.name}»",
+        details={"before": before, "after": serialize_department_project(project)},
+    )
     db.session.commit()
     return jsonify(serialize_department_project(project))
 
@@ -266,13 +350,25 @@ def update_department_project(department_id, project_id):
 @departments_bp.route("/<int:department_id>/projects/<int:project_id>", methods=["DELETE"])
 @jwt_required()
 def delete_department_project(department_id, project_id):
-    if not can_edit_department_canban(get_current_user(), department_id):
+    current_user = get_current_user()
+    if not can_edit_department_canban(current_user, department_id):
         return forbidden()
 
     project = DepartmentProject.query.filter_by(id=project_id, department_id=department_id).first()
     if not project:
         return jsonify({"ok": True})
 
+    project_snapshot = serialize_department_project(project)
+    log_activity(
+        "project_deleted",
+        "project",
+        entity_id=project.id,
+        user=current_user,
+        project_id=project.id,
+        department_id=department_id,
+        summary=f"Удален проект «{project.name}»",
+        details=project_snapshot,
+    )
     Task.query.filter_by(project_id=project.id).update({"project_id": None, "column_key": ""})
     db.session.delete(project)
     db.session.commit()

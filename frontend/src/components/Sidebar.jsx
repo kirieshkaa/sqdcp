@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
-import { Building2, CalendarDays, Columns3, LayoutDashboard, LogOut, Moon, Sun } from "lucide-react";
-import { canUseBoards, canUseCalendar, canUseCanban, canUseDepartments, normalizeRole } from "../permissions";
+import { BarChart3, Building2, CalendarDays, ClipboardList, Columns3, LayoutDashboard, LogOut, Moon, Sun, UserPlus } from "lucide-react";
+import { canUseAdminPages, canUseBoards, canUseCalendar, canUseCanban, canUseDepartments, normalizeRole } from "../permissions";
 
 const ROLE_NAMES = {
   admin: "Админ",
@@ -38,7 +38,7 @@ export default function Sidebar({ user, theme, onToggleTheme, onLogout }) {
       {canUseCanban(user) && (
         <NavLink to="/canban" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
           <Columns3 size={18} />
-          Канбан
+          Задачи
         </NavLink>
       )}
       {canUseDepartments(user) && (
@@ -46,6 +46,22 @@ export default function Sidebar({ user, theme, onToggleTheme, onLogout }) {
           <Building2 size={18} />
           Отделы
         </NavLink>
+      )}
+      {canUseAdminPages(user) && (
+        <>
+          <NavLink to="/logs" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
+            <ClipboardList size={18} />
+            Логи
+          </NavLink>
+          <NavLink to="/sqdcp-stats" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
+            <BarChart3 size={18} />
+            SQDCP статистика
+          </NavLink>
+          <NavLink to="/registrations" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
+            <UserPlus size={18} />
+            Регистрации
+          </NavLink>
+        </>
       )}
       <div className="sidebar-bottom-actions">
         <button className="sidebar-theme-toggle" onClick={onToggleTheme}>

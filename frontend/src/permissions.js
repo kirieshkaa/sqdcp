@@ -49,6 +49,10 @@ export function canEditCanban(user, departmentId) {
   return isDepartmentHead(user) && Number(user?.department_id) === Number(departmentId);
 }
 
+export function canUseAdminPages(user) {
+  return isAdmin(user);
+}
+
 export function defaultPathForUser(user) {
   return canUseBoards(user) ? "/boards" : "/canban";
 }
